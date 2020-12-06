@@ -83,11 +83,11 @@ let rec eval (e:exp) (s:evT env) =
                                          eval letBody benv
   | Apply (eF, eArg) -> let fclosure = eval eF s in
                           (match fclosure with
-         				          | Closure (arg, fbody, fDecEnv) -> let aVal = eval eArg s in
-         				                                               let aenv = bind fDecEnv arg aVal in
-         				                                                 eval fbody aenv
-         				          | RecClosure (f, arg, fbody, fDecEnv) -> let aVal = eval eArg s in
-         				                                                     let rEnv = bind fDecEnv f fclosure in
-         				                                                       let aenv = bind rEnv arg aVal in
-         				                                                         eval fbody aenv
-  | _ -> failwith "Not functional value") ;;
+                          | Closure (arg, fbody, fDecEnv) -> let aVal = eval eArg s in
+                                                               let aenv = bind fDecEnv arg aVal in
+                                                                 eval fbody aenv
+                          | RecClosure (f, arg, fbody, fDecEnv) -> let aVal = eval eArg s in
+                                                                     let rEnv = bind fDecEnv f fclosure in
+                                                                       let aenv = bind rEnv arg aVal in
+                                                                         eval fbody aenv
+                          | _ -> failwith "Not functional value") ;;
