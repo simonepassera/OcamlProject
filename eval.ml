@@ -35,11 +35,11 @@ let bind (e:evT env) (s:string) (v:evT) = fun c -> if c = s then v else lookup e
 let typecheck (x, y) =
   match x with
   | "int" -> (match y with
-             | Int u -> true
-             | _ -> false)
-  | "bool" -> (match y with
-              | Bool u -> true
+              | Int u -> true
               | _ -> false)
+  | "bool" -> (match y with
+               | Bool u -> true
+               | _ -> false)
   | _ -> failwith "Not a valid type" ;;
 
 let int_eq (x, y) =
@@ -73,9 +73,9 @@ let rec eval (e:exp) (s:evT env) =
   | Sub (e1, e2) -> int_sub ((eval e1 s), (eval e2 s))
   | Ifthenelse (e1, e2, e3) -> let g = eval e1 s in
                                  (match (typecheck("bool", g), g) with
-                               	 | (true, Bool true) -> eval e2 s
-                                 | (true, Bool false) -> eval e3 s
-                                 | (_, _) -> failwith "Not boolean guard")
+                                  | (true, Bool true) -> eval e2 s
+                                  | (true, Bool false) -> eval e3 s
+                                  | (_, _) -> failwith "Not boolean guard")
   | Den i -> lookup s i
   | Let (i, e, ebody) -> eval ebody (bind s i (eval e s))
   | Fun (arg, ebody) -> Closure (arg, ebody, s)
@@ -83,11 +83,11 @@ let rec eval (e:exp) (s:evT env) =
                                          eval letBody benv
   | Apply (eF, eArg) -> let fclosure = eval eF s in
                           (match fclosure with
-                          | Closure (arg, fbody, fDecEnv) -> let aVal = eval eArg s in
-                                                               let aenv = bind fDecEnv arg aVal in
-                                                                 eval fbody aenv
-                          | RecClosure (f, arg, fbody, fDecEnv) -> let aVal = eval eArg s in
-                                                                     let rEnv = bind fDecEnv f fclosure in
-                                                                       let aenv = bind rEnv arg aVal in
-                                                                         eval fbody aenv
-                          | _ -> failwith "Not functional value") ;;
+                           | Closure (arg, fbody, fDecEnv) -> let aVal = eval eArg s in
+                                                                let aenv = bind fDecEnv arg aVal in
+                                                                  eval fbody aenv
+                           | RecClosure (f, arg, fbody, fDecEnv) -> let aVal = eval eArg s in
+                                                                      let rEnv = bind fDecEnv f fclosure in
+                                                                        let aenv = bind rEnv arg aVal in
+                                                                          eval fbody aenv
+                           | _ -> failwith "Not functional value") ;;
