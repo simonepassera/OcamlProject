@@ -2,6 +2,8 @@
 
 type ide = string ;;
 
+type type_elts = string ;;
+
 type exp =
 | CstInt of int
 | CstTrue
@@ -15,7 +17,24 @@ type exp =
 | Let of ide * exp * exp
 | Fun of ide * exp
 | Letrec of ide * ide * exp * exp
-| Apply of exp * exp ;;
+| Apply of exp * exp
+| SetEmpty of type_elts
+| SetSingleton of type_elts * exp
+| SetOf of type_elts * (exp list)
+| Union of exp * exp
+| Inter of exp * exp
+| Diff of exp * exp
+| Add of exp * exp
+| Remove of exp * exp
+| IsEmpty of exp
+| Contains of exp * exp
+| Subset of exp * exp
+| MinElt of exp
+| MaxElt of exp
+| For_all of exp * exp
+| Exists of exp * exp
+| Filter of exp * exp
+| Map of exp * exp ;;
 
 type 'v env = string -> 'v ;;
 
@@ -24,6 +43,7 @@ type evT =
 | Bool of bool
 | Closure of ide * exp * evT env
 | RecClosure of ide * ide * exp * evT env
+| Set of type_elts * (exp list)
 | Unbound ;;
 
 let emptyEnv = fun (x:string) -> Unbound ;;
@@ -44,7 +64,7 @@ let typecheck (x, y) =
 
 let int_eq (x, y) =
   match (typecheck ("int", x), typecheck ("int", y), x, y) with
-  | (true, true, Int v, Int w) -> Bool(v = w)
+  | (true, true, Int v, Int w) -> Bool (v = w)
   | (_,_,_,_) -> failwith "Run-time error" ;;
 
 let int_plus (x, y) =
@@ -90,4 +110,21 @@ let rec eval (e:exp) (s:evT env) =
                                                                       let rEnv = bind fDecEnv f fclosure in
                                                                         let aenv = bind rEnv arg aVal in
                                                                           eval fbody aenv
-                           | _ -> failwith "Not functional value") ;;
+                           | _ -> failwith "Not functional value")
+  | SetEmpty t -> Unbound
+  | SetSingleton (t, elt) -> Unbound
+  | SetOf (t, l) -> Unbound
+  | Union (s1, s2) -> Unbound
+  | Inter (s1, s2) -> Unbound
+  | Diff (s1, s2) -> Unbound
+  | Add (s0, elt) -> Unbound
+  | Remove (s0, elt) -> Unbound
+  | IsEmpty s0 -> Unbound
+  | Contains (s0, elt) -> Unbound
+  | Subset (s1, s2) -> Unbound
+  | MinElt s0 -> Unbound
+  | MaxElt s0 -> Unbound
+  | For_all (p, s0) -> Unbound
+  | Exists (p, s0) -> Unbound
+  | Filter (p, s0) -> Unbound
+  | Map (f, s0) -> Unbound
