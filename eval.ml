@@ -6,6 +6,7 @@ type type_elts = string ;;
 
 type exp =
 | CstInt of int
+| CstString of string
 | CstTrue
 | CstFalse
 | Den of ide
@@ -40,10 +41,11 @@ type 'v env = string -> 'v ;;
 
 type evT =
 | Int of int
+| String of string
 | Bool of bool
 | Closure of ide * exp * evT env
 | RecClosure of ide * ide * exp * evT env
-| Set of type_elts * (exp list)
+| Set of type_elts * (evT list)
 | Unbound ;;
 
 let emptyEnv = fun (x:string) -> Unbound ;;
@@ -57,6 +59,9 @@ let typecheck (x, y) =
   | "int" -> (match y with
               | Int u -> true
               | _ -> false)
+  | "string" -> (match y with
+                 | String u -> true
+                 | _ -> false)
   | "bool" -> (match y with
                | Bool u -> true
                | _ -> false)
@@ -65,26 +70,27 @@ let typecheck (x, y) =
 let int_eq (x, y) =
   match (typecheck ("int", x), typecheck ("int", y), x, y) with
   | (true, true, Int v, Int w) -> Bool (v = w)
-  | (_,_,_,_) -> failwith "Run-time error" ;;
+  | (_, _, _, _) -> failwith "Run-time error" ;;
 
 let int_plus (x, y) =
   match(typecheck ("int", x), typecheck ("int", y), x, y) with
   | (true, true, Int v, Int w) -> Int (v + w)
-  | (_,_,_,_) -> failwith "Run-time error" ;;
+  | (_, _, _, _) -> failwith "Run-time error" ;;
 
 let int_sub (x, y) =
   match(typecheck ("int", x), typecheck ("int", y), x, y) with
   | (true, true, Int v, Int w) -> Int (v - w)
-  | (_,_,_,_) -> failwith "Run-time error" ;;
+  | (_, _, _, _) -> failwith "Run-time error" ;;
 
 let int_times (x, y) =
   match(typecheck ("int", x), typecheck ("int", y), x, y) with
   | (true, true, Int v, Int w) -> Int (v * w)
-  | (_,_,_,_) -> failwith "Run-time error" ;;
+  | (_, _, _, _) -> failwith "Run-time error" ;;
 
 let rec eval (e:exp) (s:evT env) =
   match e with
   | CstInt n -> Int n
+  | CstString s -> String s
   | CstTrue -> Bool true
   | CstFalse -> Bool false
   | Eq (e1, e2) -> int_eq ((eval e1 s), (eval e2 s))
@@ -92,7 +98,7 @@ let rec eval (e:exp) (s:evT env) =
   | Sum (e1, e2) -> int_plus ((eval e1 s), (eval e2 s))
   | Sub (e1, e2) -> int_sub ((eval e1 s), (eval e2 s))
   | Ifthenelse (e1, e2, e3) -> let g = eval e1 s in
-                                 (match (typecheck("bool", g), g) with
+                                 (match (typecheck ("bool", g), g) with
                                   | (true, Bool true) -> eval e2 s
                                   | (true, Bool false) -> eval e3 s
                                   | (_, _) -> failwith "Not boolean guard")
@@ -111,9 +117,38 @@ let rec eval (e:exp) (s:evT env) =
                                                                         let aenv = bind rEnv arg aVal in
                                                                           eval fbody aenv
                            | _ -> failwith "Not functional value")
-  | SetEmpty t -> Unbound
-  | SetSingleton (t, elt) -> Unbound
-  | SetOf (t, l) -> Unbound
+  | SetEmpty t -> (match t with
+                   | "int" -> Set (t, [])
+                   | "string" -> Set (t, [])
+                   | _ -> failwith "Not a valid type for elements of set")
+  | SetSingleton (t, elt) -> (match t with
+                              | "int" -> let r = eval elt s in
+                                           (match (typecheck (t, r), r) with
+                                            | (true, Int i) -> Set (t, [r])
+                                            | (_, _) -> failwith "Run-time error")
+                              | "string" -> let r = eval elt s in
+                                              (match (typecheck (t, r), r) with
+                                               | (true, String s) -> Set (t, [r])
+                                               | (_, _) -> failwith "Run-time error")
+                              | _ -> failwith "Not a valid type for elements of set")
+  | SetOf (t, l) -> (match t with
+                     | "int" -> if l = []
+                     			 then failwith "Run-time error"
+                     			    else let rec f ls = (match ls with
+                                                         | [] -> []
+                                                         | x :: xs -> let r = eval x s in (match (typecheck (t, r), r) with
+                                                         								   | (true, Int i) -> r :: f xs
+                                                         								   | (_, _) -> failwith "Run-time error"))
+                                               in Set (t, f l)
+                     | "string" -> if l = []
+                                    then failwith "Run-time error"
+                                       else let rec f ls = (match ls with
+                                                            | [] -> []
+                                                            | x :: xs -> let r = eval x s in (match (typecheck (t, r), r) with
+                                                                                              | (true, String s) -> r :: f xs
+                                                                              				  | (_, _) -> failwith "Run-time error"))
+                                                  in Set (t, f l)
+                     | _ -> failwith "Not a valid type for elements of set")
   | Union (s1, s2) -> Unbound
   | Inter (s1, s2) -> Unbound
   | Diff (s1, s2) -> Unbound
