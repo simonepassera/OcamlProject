@@ -134,21 +134,21 @@ let rec eval (e:exp) (s:evT env) =
   | SetOf (t, l) -> (match t with
                      | "int" -> if l = []
                                  then failwith "Run-time error"
-                                    else let rec f ls = (match ls with
-                                                         | [] -> []
-                                                         | x :: xs -> let r = eval x s in
-                                                                        (match (typecheck (t, r), r) with
+                                    else let rec f ls = match ls with
+                                                        | [] -> []
+                                                        | x :: xs -> let r = eval x s in
+                                                                       (match (typecheck (t, r), r) with
                                                                          | (true, Int i) -> r :: f xs
-                                                                         | (_, _) -> failwith "Run-time error"))
-                                               in Set (t, f l)
+                                                                         | (_, _) -> failwith "Run-time error")
+                                           in Set (t, f l)
                      | "string" -> if l = []
                                     then failwith "Run-time error"
-                                       else let rec f ls = (match ls with
-                                                            | [] -> []
-                                                            | x :: xs -> let r = eval x s in 
-                                                                           (match (typecheck (t, r), r) with
-                                                                            | (true, String s) -> r :: f xs
-                                                                            | (_, _) -> failwith "Run-time error"))
+                                       else let rec f ls = match ls with
+                                                           | [] -> []
+                                                           | x :: xs -> let r = eval x s in 
+                                                                          (match (typecheck (t, r), r) with
+                                                                           | (true, String s) -> r :: f xs
+                                                                           | (_, _) -> failwith "Run-time error")
                                               in Set (t, f l)
                      | _ -> failwith "Not a valid type for elements of set")
   | Union (s1, s2) -> Unbound
