@@ -65,6 +65,9 @@ let typecheck (x, y) =
   | "bool" -> (match y with
                | Bool u -> true
                | _ -> false)
+  | "set" -> (match y with
+              | Set (t, l) -> true
+              | _ -> false)
   | _ -> failwith "Not a valid type" ;;
 
 let int_eq (x, y) =
@@ -138,8 +141,8 @@ let rec eval (e:exp) (s:evT env) =
                                                         | [] -> []
                                                         | x :: xs -> let r = eval x s in
                                                                        (match (typecheck (t, r), r) with
-                                                                         | (true, Int i) -> r :: f xs
-                                                                         | (_, _) -> failwith "Run-time error")
+                                                                        | (true, Int i) -> r :: f xs
+                                                                        | (_, _) -> failwith "Run-time error")
                                            in Set (t, f l)
                      | "string" -> if l = []
                                     then failwith "Run-time error"
@@ -156,7 +159,10 @@ let rec eval (e:exp) (s:evT env) =
   | Diff (s1, s2) -> Unbound
   | Add (s0, elt) -> Unbound
   | Remove (s0, elt) -> Unbound
-  | IsEmpty s0 -> Unbound
+  | IsEmpty s0 -> let es = eval s0 s in
+                    (match (typecheck ("set", es), es) with
+                     | (true, Set (t, l)) -> Bool (l = [])
+                     | (_, _) -> failwith "Run-time error")
   | Contains (s0, elt) -> Unbound
   | Subset (s1, s2) -> Unbound
   | MinElt s0 -> Unbound
