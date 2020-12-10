@@ -102,6 +102,13 @@ let type_elts_check t =
   | "fun" -> true
   | _ -> false ;;
 
+let rec contains (l, elt) =
+  match l with
+  | [] -> false
+  | x :: xs -> if x = elt
+                then true
+                   else contains (xs, elt) ;;
+
 let rec eval (e:exp) (s:evT env) =
   match e with
   | CstInt n -> Int n
@@ -156,13 +163,39 @@ let rec eval (e:exp) (s:evT env) =
   | Union (s1, s2) -> Unbound
   | Inter (s1, s2) -> Unbound
   | Diff (s1, s2) -> Unbound
-  | Add (s0, elt) -> Unbound
-  | Remove (s0, elt) -> Unbound
+  | Add (s0, elt) -> let es = eval s0 s in
+                       (match (typecheck ("set", es), es) with
+                        | (true, Set (t, l)) -> let r = eval elt s in
+                                                  (match (typecheck (t, r)) with
+                                                   | true ->  if (contains (l, r)) = true
+                                                               then Set (t, l)
+                                                                  else Set (t, r :: l)
+                                                   | _ -> failwith "Run-time error")
+                        | (_, _) -> failwith "Run-time error")
+  | Remove (s0, elt) -> let es = eval s0 s in
+                          (match (typecheck ("set", es), es) with
+                           | (true, Set (t, l)) -> let r = eval elt s in
+                                                    (match (typecheck (t, r)) with
+                                                     | true -> let rec f ls =
+                                                                 match ls with
+                                                                 | [] -> []
+                                                                 | x :: xs -> if x = r
+                                                                               then xs
+                                                                                  else x :: f xs
+                                                                 in Set (t, f l) 
+                                                     | _ -> failwith "Run-time error")
+                           | (_, _) -> failwith "Run-time error")
   | IsEmpty s0 -> let es = eval s0 s in
                     (match (typecheck ("set", es), es) with
                      | (true, Set (t, l)) -> Bool (l = [])
                      | (_, _) -> failwith "Run-time error")
-  | Contains (s0, elt) -> Unbound
+  | Contains (s0, elt) -> let es = eval s0 s in
+                            (match (typecheck ("set", es), es) with
+                             | (true, Set (t, l)) -> let r = eval elt s in
+                                                       (match (typecheck (t, r)) with
+                                                        | true ->  Bool (contains (l, r))
+                                                        | _ -> failwith "Run-time error")
+                             | (_, _) -> failwith "Run-time error")
   | Subset (s1, s2) -> Unbound
   | MinElt s0 -> Unbound
   | MaxElt s0 -> Unbound
