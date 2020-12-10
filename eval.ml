@@ -68,6 +68,10 @@ let typecheck (x, y) =
   | "set" -> (match y with
               | Set (t, l) -> true
               | _ -> false)
+  | "fun" -> (match y with
+              | Closure (arg, fbody, fDecEnv) -> true
+              | RecClosure (f, arg, fbody, fDecEnv) -> true
+              | _ -> false)
   | _ -> failwith "Not a valid type" ;;
 
 let int_eq (x, y) =
@@ -89,6 +93,14 @@ let int_times (x, y) =
   match(typecheck ("int", x), typecheck ("int", y), x, y) with
   | (true, true, Int v, Int w) -> Int (v * w)
   | (_, _, _, _) -> failwith "Run-time error" ;;
+
+let type_elts_check t =
+  match t with
+  | "int" -> true
+  | "string" -> true
+  | "bool" -> true
+  | "fun" -> true
+  | _ -> false ;;
 
 let rec eval (e:exp) (s:evT env) =
   match e with
@@ -120,39 +132,26 @@ let rec eval (e:exp) (s:evT env) =
                                                                         let aenv = bind rEnv arg aVal in
                                                                           eval fbody aenv
                            | _ -> failwith "Not functional value")
-  | SetEmpty t -> (match t with
-                   | "int" -> Set (t, [])
-                   | "string" -> Set (t, [])
+  | SetEmpty t -> (match (type_elts_check t) with
+                   | true -> Set (t, [])
                    | _ -> failwith "Not a valid type for elements of set")
-  | SetSingleton (t, elt) -> (match t with
-                              | "int" -> let r = eval elt s in
-                                           (match (typecheck (t, r), r) with
-                                            | (true, Int i) -> Set (t, [r])
-                                            | (_, _) -> failwith "Run-time error")
-                              | "string" -> let r = eval elt s in
-                                              (match (typecheck (t, r), r) with
-                                               | (true, String s) -> Set (t, [r])
-                                               | (_, _) -> failwith "Run-time error")
+  | SetSingleton (t, elt) -> (match (type_elts_check t) with
+                              | true -> let r = eval elt s in
+                                          (match (typecheck (t, r)) with
+                                           | true -> Set (t, [r])
+                                           | _ -> failwith "Run-time error")
                               | _ -> failwith "Not a valid type for elements of set")
-  | SetOf (t, l) -> (match t with
-                     | "int" -> if l = []
-                                 then failwith "Run-time error"
-                                    else let rec f ls = match ls with
-                                                        | [] -> []
-                                                        | x :: xs -> let r = eval x s in
-                                                                       (match (typecheck (t, r), r) with
-                                                                        | (true, Int i) -> r :: f xs
-                                                                        | (_, _) -> failwith "Run-time error")
-                                           in Set (t, f l)
-                     | "string" -> if l = []
-                                    then failwith "Run-time error"
-                                       else let rec f ls = match ls with
-                                                           | [] -> []
-                                                           | x :: xs -> let r = eval x s in 
-                                                                          (match (typecheck (t, r), r) with
-                                                                           | (true, String s) -> r :: f xs
-                                                                           | (_, _) -> failwith "Run-time error")
-                                              in Set (t, f l)
+  | SetOf (t, l) -> (match (type_elts_check t) with
+                     | true -> if l = []
+                                then failwith "Run-time error"
+                                   else let rec f ls = 
+                                          match ls with
+                                          | [] -> []
+                                          | x :: xs -> let r = eval x s in
+                                                         (match (typecheck (t, r)) with
+                                                          | true -> r :: f xs
+                                                          | _ -> failwith "Run-time error")
+                                          in Set (t, f l)    
                      | _ -> failwith "Not a valid type for elements of set")
   | Union (s1, s2) -> Unbound
   | Inter (s1, s2) -> Unbound
