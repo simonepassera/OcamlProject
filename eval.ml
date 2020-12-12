@@ -1,9 +1,5 @@
 (* The language *)
 
-type ide = string ;;
-
-type type_elts = string ;;
-
 type exp =
 | CstInt of int
 | CstString of string
@@ -21,7 +17,7 @@ type exp =
 | Apply of exp * exp
 | SetEmpty of type_elts
 | SetSingleton of type_elts * exp
-| SetOf of type_elts * (exp list)
+| SetOf of type_elts * elts
 | Union of exp * exp
 | Inter of exp * exp
 | Diff of exp * exp
@@ -35,7 +31,10 @@ type exp =
 | For_all of exp * exp
 | Exists of exp * exp
 | Filter of exp * exp
-| Map of exp * exp ;;
+| Map of exp * exp
+and ide = string
+and type_elts = string
+and elts = exp list ;;
 
 type 'v env = string -> 'v ;;
 
