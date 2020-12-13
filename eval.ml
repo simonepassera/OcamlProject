@@ -108,6 +108,50 @@ let rec contains (l, elt) =
                 then true
                    else contains (xs, elt) ;;
 
+let rec int_max ls =
+  match ls with
+  | [] -> Unbound
+  | Int x :: [] -> Int x
+  | Int x :: xs -> (match (int_max xs) with 
+                    | Int r -> if x > r 
+                                then Int x
+                                   else Int r
+                    | _ -> failwith "Run-time error")
+  | _ -> failwith "Run-time error" ;;
+
+let rec string_max ls =
+  match ls with
+  | [] -> Unbound
+  | String x :: [] -> String x
+  | String x :: xs -> (match (string_max xs) with 
+                       | String r -> if x > r 
+                                      then String x
+                                         else String  r
+                       | _ -> failwith "Run-time error")
+  | _ -> failwith "Run-time error" ;;
+
+let rec int_min ls =
+  match ls with
+  | [] -> Unbound
+  | Int x :: [] -> Int x
+  | Int x :: xs -> (match (int_min xs) with 
+                    | Int r -> if x < r 
+                                then Int x
+                                   else Int r
+                    | _ -> failwith "Run-time error")
+  | _ -> failwith "Run-time error" ;;
+
+let rec string_min ls =
+  match ls with
+  | [] -> Unbound
+  | String x :: [] -> String x
+  | String x :: xs -> (match (string_min xs) with 
+                       | String r -> if x < r 
+                                      then String x
+                                         else String  r
+                       | _ -> failwith "Run-time error")
+  | _ -> failwith "Run-time error" ;;
+  
 let rec eval (e:exp) (s:evT env) =
   match e with
   | CstInt n -> Int n
@@ -196,8 +240,20 @@ let rec eval (e:exp) (s:evT env) =
                                                         | _ -> failwith "Run-time error")
                              | (_, _) -> failwith "Run-time error")
   | Subset (s1, s2) -> Unbound
-  | MinElt s0 -> Unbound
-  | MaxElt s0 -> Unbound
+  | MinElt s0 -> let es = eval s0 s in
+                     (match (typecheck ("set", es), es) with
+                      | (true, Set (t, l)) -> (match t with
+                                               | "int" -> int_min l 
+                                               | "string" -> string_min l
+                                               | _ -> failwith "Run-time error")
+                      | (_, _) -> failwith "Run-time error")
+  | MaxElt s0 -> let es = eval s0 s in
+                   (match (typecheck ("set", es), es) with
+                    | (true, Set (t, l)) -> (match t with
+                                             | "int" -> int_max l 
+                                             | "string" -> string_max l
+                                             | _ -> failwith "Run-time error")
+                    | (_, _) -> failwith "Run-time error")
   | For_all (p, s0) -> Unbound
   | Exists (p, s0) -> Unbound
   | Filter (p, s0) -> Unbound
