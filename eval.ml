@@ -73,6 +73,14 @@ let typecheck (x, y) =
               | _ -> false)
   | _ -> failwith "Not a valid type" ;;
 
+let type_elts_check t =
+  match t with
+  | "int" -> true
+  | "string" -> true
+  | "bool" -> true
+  | "fun" -> true
+  | _ -> false ;;
+
 let int_eq (x, y) =
   match (typecheck ("int", x), typecheck ("int", y), x, y) with
   | (true, true, Int v, Int w) -> Bool (v = w)
@@ -93,64 +101,119 @@ let int_times (x, y) =
   | (true, true, Int v, Int w) -> Int (v * w)
   | (_, _, _, _) -> failwith "Run-time error" ;;
 
-let type_elts_check t =
-  match t with
-  | "int" -> true
-  | "string" -> true
-  | "bool" -> true
-  | "fun" -> true
-  | _ -> false ;;
+let contains (s, elt) =
+  match (typecheck ("set", s), s) with
+  | (true, Set (t, l)) -> (match (typecheck (t, elt)) with
+                           | true -> let rec f (ls, e) =
+                                       match ls with
+                                       | [] -> false
+                                       | x :: xs -> if x = elt
+                                                     then true
+                                                        else f (xs, e)
+                                       in Bool (f (l, elt))
+                           | _ -> failwith "Run-time error")
+  | (_, _) -> failwith "Run-time error" ;;
 
-let rec contains (l, elt) =
-  match l with
-  | [] -> false
-  | x :: xs -> if x = elt
-                then true
-                   else contains (xs, elt) ;;
+let add (s, elt) =
+  match (typecheck ("set", s), s) with
+  | (true, Set (t, l)) -> (match (typecheck (t, elt)) with
+                           | true -> if contains (s, elt) = Bool true
+                                      then Set (t, l)
+                                         else Set (t, elt :: l)
+                           | _ -> failwith "Run-time error")
+  | (_, _) -> failwith "Run-time error" ;;
 
-let rec int_max ls =
-  match ls with
-  | [] -> Unbound
-  | Int x :: [] -> Int x
-  | Int x :: xs -> (match (int_max xs) with 
-                    | Int r -> if x > r 
-                                then Int x
-                                   else Int r
-                    | _ -> failwith "Run-time error")
-  | _ -> failwith "Run-time error" ;;
+let set_empty t =
+  match (type_elts_check t) with
+  | true -> Set (t, [])
+  | _ -> failwith "Not a valid type for elements of set" ;;
 
-let rec string_max ls =
-  match ls with
-  | [] -> Unbound
-  | String x :: [] -> String x
-  | String x :: xs -> (match (string_max xs) with 
-                       | String r -> if x > r 
-                                      then String x
-                                         else String  r
-                       | _ -> failwith "Run-time error")
-  | _ -> failwith "Run-time error" ;;
+let set_singleton (t, elt) = add (set_empty t, elt) ;;
 
-let rec int_min ls =
-  match ls with
-  | [] -> Unbound
-  | Int x :: [] -> Int x
-  | Int x :: xs -> (match (int_min xs) with 
-                    | Int r -> if x < r 
-                                then Int x
-                                   else Int r
-                    | _ -> failwith "Run-time error")
-  | _ -> failwith "Run-time error" ;;
+let set_of (t, l) =
+  match (type_elts_check t) with
+  | true -> if l = []
+             then failwith "Run-time error"
+                else let rec create_set ls =
+                       match ls with
+                       | [] -> set_empty t
+                       | x :: xs -> add (create_set xs, x)
+                       in create_set l    
+  | _ -> failwith "Not a valid type for elements of set" ;;
 
-let rec string_min ls =
-  match ls with
-  | [] -> Unbound
-  | String x :: [] -> String x
-  | String x :: xs -> (match (string_min xs) with 
-                       | String r -> if x < r 
-                                      then String x
-                                         else String  r
-                       | _ -> failwith "Run-time error")
-  | _ -> failwith "Run-time error" ;;
+let remove (s, elt) =
+  match (typecheck ("set", s), s) with
+  | (true, Set (t, l)) -> (match (typecheck (t, elt)) with
+                           | true -> let rec f ls =
+                                       match ls with
+                                       | [] -> []
+                                       | x :: xs -> if x = elt
+                                                     then xs
+                                                        else x :: f xs
+                                       in Set (t, f l) 
+                           | _ -> failwith "Run-time error")
+  | (_, _) -> failwith "Run-time error" ;;
+
+let is_empty s =
+  match (typecheck ("set", s), s) with
+  | (true, Set (t, l)) -> Bool (l = [])
+  | (_, _) -> failwith "Run-time error" ;;
+
+let min_elt s =
+  match (typecheck ("set", s), s) with
+  | (true, Set (t, l)) -> (match t with
+                           | "int" -> let rec int_min ls =
+                                        match ls with
+                                        | [] -> Unbound
+                                        | Int x :: [] -> Int x
+                                        | Int x :: xs -> (match (int_min xs) with 
+                                                          | Int r -> if x < r 
+                                                                      then Int x
+                                                                         else Int r
+                                                          | _ -> failwith "Run-time error")
+                                        | _ -> failwith "Run-time error" 
+                                        in int_min l     
+                           | "string" -> let rec string_min ls =
+                                            match ls with
+                                            | [] -> Unbound
+                                            | String x :: [] -> String x
+                                            | String x :: xs -> (match (string_min xs) with 
+                                                                 | String r -> if x < r 
+                                                                                then String x
+                                                                                   else String  r
+                                                                 | _ -> failwith "Run-time error")
+                                            | _ -> failwith "Run-time error"
+                                            in string_min l
+                           | _ -> failwith "Run-time error")
+  | (_, _) -> failwith "Run-time error" ;;
+
+let max_elt s =
+  match (typecheck ("set", s), s) with
+  | (true, Set (t, l)) -> (match t with
+                           | "int" -> let rec int_max ls =
+                                        match ls with
+                                        | [] -> Unbound
+                                        | Int x :: [] -> Int x
+                                        | Int x :: xs -> (match (int_max xs) with 
+                                                          | Int r -> if x > r 
+                                                                      then Int x
+                                                                         else Int r
+                                                          | _ -> failwith "Run-time error")
+                                        | _ -> failwith "Run-time error" 
+                                        in int_max l     
+                           | "string" -> let rec string_max ls =
+                                            match ls with
+                                            | [] -> Unbound
+                                            | String x :: [] -> String x
+                                            | String x :: xs -> (match (string_max xs) with 
+                                                                 | String r -> if x > r 
+                                                                                then String x
+                                                                                   else String  r
+                                                                 | _ -> failwith "Run-time error")
+                                            | _ -> failwith "Run-time error"
+                                            in string_max l
+                           | _ -> failwith "Run-time error")
+  | (_, _) -> failwith "Run-time error" ;;
   
 let rec eval (e:exp) (s:evT env) =
   match e with
@@ -182,78 +245,23 @@ let rec eval (e:exp) (s:evT env) =
                                                                         let aenv = bind rEnv arg aVal in
                                                                           eval fbody aenv
                            | _ -> failwith "Not functional value")
-  | SetEmpty t -> (match (type_elts_check t) with
-                   | true -> Set (t, [])
-                   | _ -> failwith "Not a valid type for elements of set")
-  | SetSingleton (t, elt) -> (match (type_elts_check t) with
-                              | true -> let r = eval elt s in
-                                          (match (typecheck (t, r)) with
-                                           | true -> Set (t, [r])
-                                           | _ -> failwith "Run-time error")
-                              | _ -> failwith "Not a valid type for elements of set")
-  | SetOf (t, l) -> (match (type_elts_check t) with
-                     | true -> if l = []
-                                then failwith "Run-time error"
-                                   else let rec f ls = 
-                                          match ls with
-                                          | [] -> []
-                                          | x :: xs -> let r = eval x s in
-                                                         (match (typecheck (t, r)) with
-                                                          | true -> r :: f xs
-                                                          | _ -> failwith "Run-time error")
-                                          in Set (t, f l)    
-                     | _ -> failwith "Not a valid type for elements of set")
+  | SetEmpty t -> set_empty t
+  | SetSingleton (t, elt) -> set_singleton (t, (eval elt s))
+  | SetOf (t, l) -> let rec f ls = 
+                      match ls with
+                      | [] -> []
+                      | x :: xs -> (eval x s) :: f xs
+                      in set_of (t, f l)
   | Union (s1, s2) -> Unbound
   | Inter (s1, s2) -> Unbound
   | Diff (s1, s2) -> Unbound
-  | Add (s0, elt) -> let es = eval s0 s in
-                       (match (typecheck ("set", es), es) with
-                        | (true, Set (t, l)) -> let r = eval elt s in
-                                                  (match (typecheck (t, r)) with
-                                                   | true ->  if (contains (l, r)) = true
-                                                               then Set (t, l)
-                                                                  else Set (t, r :: l)
-                                                   | _ -> failwith "Run-time error")
-                        | (_, _) -> failwith "Run-time error")
-  | Remove (s0, elt) -> let es = eval s0 s in
-                          (match (typecheck ("set", es), es) with
-                           | (true, Set (t, l)) -> let r = eval elt s in
-                                                    (match (typecheck (t, r)) with
-                                                     | true -> let rec f ls =
-                                                                 match ls with
-                                                                 | [] -> []
-                                                                 | x :: xs -> if x = r
-                                                                               then xs
-                                                                                  else x :: f xs
-                                                                 in Set (t, f l) 
-                                                     | _ -> failwith "Run-time error")
-                           | (_, _) -> failwith "Run-time error")
-  | IsEmpty s0 -> let es = eval s0 s in
-                    (match (typecheck ("set", es), es) with
-                     | (true, Set (t, l)) -> Bool (l = [])
-                     | (_, _) -> failwith "Run-time error")
-  | Contains (s0, elt) -> let es = eval s0 s in
-                            (match (typecheck ("set", es), es) with
-                             | (true, Set (t, l)) -> let r = eval elt s in
-                                                       (match (typecheck (t, r)) with
-                                                        | true ->  Bool (contains (l, r))
-                                                        | _ -> failwith "Run-time error")
-                             | (_, _) -> failwith "Run-time error")
+  | Add (s0, elt) -> add ((eval s0 s), (eval elt s))
+  | Remove (s0, elt) -> remove ((eval s0 s), (eval elt s))
+  | IsEmpty s0 -> is_empty (eval s0 s)
+  | Contains (s0, elt) ->  contains ((eval s0 s), (eval elt s))
   | Subset (s1, s2) -> Unbound
-  | MinElt s0 -> let es = eval s0 s in
-                     (match (typecheck ("set", es), es) with
-                      | (true, Set (t, l)) -> (match t with
-                                               | "int" -> int_min l 
-                                               | "string" -> string_min l
-                                               | _ -> failwith "Run-time error")
-                      | (_, _) -> failwith "Run-time error")
-  | MaxElt s0 -> let es = eval s0 s in
-                   (match (typecheck ("set", es), es) with
-                    | (true, Set (t, l)) -> (match t with
-                                             | "int" -> int_max l 
-                                             | "string" -> string_max l
-                                             | _ -> failwith "Run-time error")
-                    | (_, _) -> failwith "Run-time error")
+  | MinElt s0 -> min_elt (eval s0 s)         
+  | MaxElt s0 -> max_elt (eval s0 s)
   | For_all (p, s0) -> Unbound
   | Exists (p, s0) -> Unbound
   | Filter (p, s0) -> Unbound
