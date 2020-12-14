@@ -227,7 +227,22 @@ let union (s1, s2) =
                                                                        in create_set l2
                                                           | _ -> failwith "Run-time error")
   | (_, _, _, _) -> failwith "Run-time error" ;;
-  
+
+let inter (s1, s2) =
+  match (typecheck ("set", s1), typecheck ("set", s2), s1, s2) with
+  | (true, true, Set (t1, l1), Set (t2, l2)) -> if t1 <> t2
+                                                 then failwith "Run-time error"
+                                                    else (match (type_elts_check t1) with
+                                                          | true -> let rec create_set ls =
+                                                                       match ls with
+                                                                       | [] -> set_empty t1
+                                                                       | x :: xs -> if contains (s2, x) = Bool true
+                                                                                     then add (create_set xs, x)
+                                                                                        else create_set xs
+                                                                       in create_set l1
+                                                          | _ -> failwith "Run-time error")
+  | (_, _, _, _) -> failwith "Run-time error" ;;
+
 let rec eval (e:exp) (s:evT env) =
   match e with
   | CstInt n -> Int n
@@ -266,7 +281,7 @@ let rec eval (e:exp) (s:evT env) =
                       | x :: xs -> (eval x s) :: f xs
                       in set_of (t, f l)
   | Union (s1, s2) -> union ((eval s1 s), (eval s2 s))
-  | Inter (s1, s2) -> Unbound
+  | Inter (s1, s2) -> inter ((eval s1 s),(eval s2 s))
   | Diff (s1, s2) -> Unbound
   | Add (s0, elt) -> add ((eval s0 s), (eval elt s))
   | Remove (s0, elt) -> remove ((eval s0 s), (eval elt s))
