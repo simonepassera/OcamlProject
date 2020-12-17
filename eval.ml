@@ -320,7 +320,57 @@ let rec eval (e:exp) (s:evT env) =
   | Subset (s1, s2) -> subset ((eval s1 s), (eval s2 s))
   | MinElt s0 -> min_elt (eval s0 s)         
   | MaxElt s0 -> max_elt (eval s0 s)
-  | For_all (p, s0) -> Unbound
-  | Exists (p, s0) -> Unbound
-  | Filter (p, s0) -> Unbound
-  | Map (f, s0) -> Unbound
+  | For_all (p, s0) -> let es = eval s0 s in
+                         (match (typecheck ("set", es), es) with
+                          | (true, Set (t, l)) -> (match (pred_check (eval p s, t), p) with
+                                                   | (true, Closure (arg, fbody, fDecEnv)) -> let rec check ls =
+                                                                                               match ls with
+                                                                                               | [] -> Bool true
+                                                                                               | x :: xs -> let aVal = eval x s in
+                                                                                                              let aenv = bind fDecEnv arg aVal in
+                                                                                                                if (eval fbody aenv) = Bool true
+                                                                                                                 then check xs
+                                                                                                                    else Bool false
+                                                                                               in check l           
+                                                   | (_, _) -> failwith "Run-time error")
+                          | (_, _) -> failwith "Run-time error")
+  | Exists (p, s0) -> let es = eval s0 s in
+                        (match (typecheck ("set", es), es) with
+                         | (true, Set (t, l)) -> (match (pred_check (eval p s, t), p) with
+                                                  | (true, Closure (arg, fbody, fDecEnv)) -> let rec check ls =
+                                                                                               match ls with
+                                                                                               | [] -> Bool false
+                                                                                               | x :: xs -> let aVal = eval x s in
+                                                                                                              let aenv = bind fDecEnv arg aVal in
+                                                                                                                if (eval fbody aenv) = Bool true
+                                                                                                                 then Bool true 
+                                                                                                                    else check xs
+                                                                                               in check l           
+                                                  | (_, _) -> failwith "Run-time error")
+                         | (_, _) -> failwith "Run-time error")
+  | Filter (p, s0) -> let es = eval s0 s in
+                        (match (typecheck ("set", es), es) with
+                         | (true, Set (t, l)) -> (match (pred_check (eval p s, t), p) with
+                                                  | (true, Closure (arg, fbody, fDecEnv)) -> let rec create_set ls =
+                                                                                               match ls with
+                                                                                               | [] -> set_empty t
+                                                                                               | x :: xs -> let aVal = eval x s in
+                                                                                                              let aenv = bind fDecEnv arg aVal in
+                                                                                                                if (eval fbody aenv) = Bool true
+                                                                                                                 then add (create_set xs, x)
+                                                                                                                    else create_set xs
+                                                                                               in create_set l           
+                                                  | (_, _) -> failwith "Run-time error")
+                         | (_, _) -> failwith "Run-time error")
+  | Map (f, s0) -> let es = eval s0 s in
+                     (match (typecheck ("set", es), es) with
+                      | (true, Set (t, l)) -> (match (fun_check (eval f s, t), f) with
+                                               | (type_res, Closure (arg, fbody, fDecEnv)) -> let rec create_set ls =
+                                                                                                match ls with
+                                                                                                | [] -> set_empty type_res
+                                                                                                | x :: xs -> let aVal = eval x s in
+                                                                                                               let aenv = bind fDecEnv arg aVal in
+                                                                                                                 add (create_set xs, (eval fbody aenv))
+                                                                                                in create_set l
+                                               | (_, _) -> failwith "Run-time error")
+                      | (_, _) -> failwith "Run-time error")
