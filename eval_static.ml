@@ -86,7 +86,7 @@ let int_eq (x, y) =
   | (true, true, Int v, Int w) -> Bool (v = w)
   | (_, _, _, _) -> failwith "Run-time error" ;;
 
-let int_plus (x, y) =
+let int_sum (x, y) =
   match(typecheck ("int", x), typecheck ("int", y), x, y) with
   | (true, true, Int v, Int w) -> Int (v + w)
   | (_, _, _, _) -> failwith "Run-time error" ;;
@@ -219,58 +219,50 @@ let union (s1, s2) =
   match (typecheck ("set", s1), typecheck ("set", s2), s1, s2) with
   | (true, true, Set (t1, l1), Set (t2, l2)) -> if t1 <> t2
                                                  then failwith "Run-time error"
-                                                    else (match (type_elts_check t1) with
-                                                          | true -> let rec create_set ls =
-                                                                      match ls with
-                                                                      | [] -> s1
-                                                                      | x :: xs -> add (create_set xs, x)
-                                                                      in create_set l2
-                                                          | _ -> failwith "Run-time error")
+                                                    else let rec create_set ls =
+                                                           match ls with
+                                                           | [] -> s1
+                                                           | x :: xs -> add (create_set xs, x)
+                                                           in create_set l2
   | (_, _, _, _) -> failwith "Run-time error" ;;
 
 let inter (s1, s2) =
   match (typecheck ("set", s1), typecheck ("set", s2), s1, s2) with
   | (true, true, Set (t1, l1), Set (t2, l2)) -> if t1 <> t2
                                                  then failwith "Run-time error"
-                                                    else (match (type_elts_check t1) with
-                                                          | true -> let rec create_set ls =
-                                                                      match ls with
-                                                                      | [] -> set_empty t1
-                                                                      | x :: xs -> if contains (s2, x) = Bool true
-                                                                                    then add (create_set xs, x)
-                                                                                       else create_set xs
-                                                                      in create_set l1
-                                                          | _ -> failwith "Run-time error")
+                                                    else let rec create_set ls =
+                                                           match ls with
+                                                           | [] -> set_empty t1
+                                                           | x :: xs -> if contains (s2, x) = Bool true
+                                                                         then add (create_set xs, x)
+                                                                            else create_set xs
+                                                           in create_set l1
   | (_, _, _, _) -> failwith "Run-time error" ;;
 
 let diff (s1, s2) =
   match (typecheck ("set", s1), typecheck ("set", s2), s1, s2) with
   | (true, true, Set (t1, l1), Set (t2, l2)) -> if t1 <> t2
                                                  then failwith "Run-time error"
-                                                    else (match (type_elts_check t1) with
-                                                          | true -> let rec create_set ls =
-                                                                      match ls with
-                                                                      | [] -> set_empty t1
-                                                                      | x :: xs -> if contains (s2, x) = Bool false
-                                                                                    then add (create_set xs, x)
-                                                                                       else create_set xs
-                                                                      in create_set l1
-                                                          | _ -> failwith "Run-time error")
+                                                    else let rec create_set ls =
+                                                           match ls with
+                                                           | [] -> set_empty t1
+                                                           | x :: xs -> if contains (s2, x) = Bool false
+                                                                         then add (create_set xs, x)
+                                                                            else create_set xs
+                                                           in create_set l1
   | (_, _, _, _) -> failwith "Run-time error" ;;
 
 let subset (s1, s2) =
   match (typecheck ("set", s1), typecheck ("set", s2), s1, s2) with
   | (true, true, Set (t1, l1), Set (t2, l2)) -> if t1 <> t2
                                                  then failwith "Run-time error"
-                                                    else (match (type_elts_check t1) with
-                                                          | true -> let rec check ls =
-                                                                      match ls with
-                                                                      | [] -> Bool true
-                                                                      | x :: xs -> if contains (s2, x) = Bool true
-                                                                                    then check xs
-                                                                                       else Bool false
-                                                                      in check l1
-                                                          | _ -> failwith "Run-time error")
+                                                    else let rec check ls =
+                                                           match ls with
+                                                           | [] -> Bool true
+                                                           | x :: xs -> if contains (s2, x) = Bool true
+                                                                         then check xs
+                                                                            else Bool false
+                                                           in check l1
   | (_, _, _, _) -> failwith "Run-time error" ;;
 
 let rec eval (e:exp) (s:evT env) =
@@ -281,7 +273,7 @@ let rec eval (e:exp) (s:evT env) =
   | CstFalse -> Bool false
   | Eq (e1, e2) -> int_eq ((eval e1 s), (eval e2 s))
   | Times (e1, e2) -> int_times ((eval e1 s), (eval e2 s))
-  | Sum (e1, e2) -> int_plus ((eval e1 s), (eval e2 s))
+  | Sum (e1, e2) -> int_sum ((eval e1 s), (eval e2 s))
   | Sub (e1, e2) -> int_sub ((eval e1 s), (eval e2 s))
   | Ifthenelse (e1, e2, e3) -> let g = eval e1 s in
                                  (match (typecheck ("bool", g), g) with
