@@ -283,7 +283,7 @@ let rec eval (e:exp) (s:evT env) =
   | Den i -> lookup s i
   | Let (i, e, ebody) -> eval ebody (bind s i (eval e s))
   | Fun (arg, ebody) -> Closure (arg, ebody, s)
-  | Letrec (f, arg, fBody, letBody) -> let benv = bind s f (RecClosure (f, arg, fBody,s)) in
+  | Letrec (f, arg, fBody, letBody) -> let benv = bind s f (RecClosure (f, arg, fBody, s)) in
                                          eval letBody benv
   | Apply (eF, eArg) -> let fclosure = eval eF s in
                           (match fclosure with

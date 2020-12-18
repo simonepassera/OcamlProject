@@ -14,9 +14,9 @@ type tenv = ide -> tval ;;
 
 let emptyTenv = fun (x:ide) -> Unbound ;;
 
-let lookup (e:tenv) (i:ide) = e i ;;
+let lookupTenv (e:tenv) (i:ide) = e i ;;
 
-let bind (e:tenv) (i:ide) (v:tval) = fun x -> if x = i then v else lookup e x ;;
+let bindTenv (e:tenv) (i:ide) (v:tval) = fun x -> if x = i then v else lookupTenv e x ;;
 
 let type_elts_check t =
   match t with
@@ -115,15 +115,15 @@ let rec teval (e:texp) (s:tenv) =
                                                   | (Tstring, Tstring) -> Tstring
                                                   | (_, _) -> failwith "Wrong type")
                                   | _ -> failwith "Wrong type")
-  | Den i -> lookup s i
-  | Let (i, e, ebody) -> teval ebody (bind s i (teval e s))
-  | Fun (arg, targ, ebody) -> let env = bind s arg targ in
+  | Den i -> lookupTenv s i
+  | Let (i, e, ebody) -> teval ebody (bindTenv s i (teval e s))
+  | Fun (arg, targ, ebody) -> let env = bindTenv s arg targ in
                                 let tres = teval ebody env in
                                   Tfun (targ, tres)
-  | Letrec (f, arg, targ, fBody, tres, letBody) -> let renv = bind s f (Trecfun (f, targ, tres)) in
-                                                     let env = bind renv arg targ in
+  | Letrec (f, arg, targ, fBody, tres, letBody) -> let renv = bindTenv s f (Trecfun (f, targ, tres)) in
+                                                     let env = bindTenv renv arg targ in
                                                        if (teval fBody env) = tres
-                                                        then teval letBody (bind s f (Trecfun (f, targ, tres)))
+                                                        then teval letBody (bindTenv s f (Trecfun (f, targ, tres)))
                                                            else failwith "Wrong type"
   | Apply (eF, eArg) -> let f = teval eF s in
                           (match f with
@@ -183,3 +183,275 @@ let rec teval (e:texp) (s:tenv) =
                                                       then failwith "Wrong type"
                                                          else Tset tres
                     | (_, _) -> failwith "Wrong type")
+
+type 'v env = string -> 'v ;;
+
+type evT =
+| Int of int
+| String of string
+| Bool of bool
+| Closure of ide * texp * evT env
+| RecClosure of ide * ide * texp * evT env
+| Set of type_elts * (evT list)
+| Unbound ;;
+
+let emptyEnv = fun (x:string) -> Unbound ;;
+
+let lookup (s:evT env) (i:string) = s i ;;
+
+let bind (e:evT env) (s:string) (v:evT) = fun c -> if c = s then v else lookup e c ;;
+
+let int_eq (x, y) =
+  match (x, y) with
+  | (Int v, Int w) -> Bool (v = w)
+  | (_, _) -> failwith "Run-time error" ;;
+
+let int_sum (x, y) =
+  match(x, y) with
+  | (Int v, Int w) -> Int (v + w)
+  | (_, _) -> failwith "Run-time error" ;;
+
+let int_sub (x, y) =
+  match(x, y) with
+  | (Int v, Int w) -> Int (v - w)
+  | (_, _) -> failwith "Run-time error" ;;
+
+let int_times (x, y) =
+  match(x, y) with
+  | (Int v, Int w) -> Int (v * w)
+  | (_, _) -> failwith "Run-time error" ;;
+
+let contains (s, elt) =
+  match s with
+  | Set (t, l) -> let rec f (ls, e) =
+                    match ls with
+                    | [] -> false
+                    | x :: xs -> if x = elt
+                                  then true
+                                     else f (xs, e)
+                    in Bool (f (l, elt))
+  | _ -> failwith "Run-time error" ;;
+
+let add (s, elt) =
+  match s with
+  | Set (t, l) -> if contains (s, elt) = Bool true
+                   then Set (t, l)
+                      else Set (t, elt :: l)
+  | _ -> failwith "Run-time error" ;;
+
+let set_empty t = Set (t, []) ;;
+
+let set_singleton (t, elt) = add (set_empty t, elt) ;;
+
+let set_of (t, l) = let rec create_set ls =
+                      match ls with
+                      | [] -> set_empty t
+                      | x :: xs -> add (create_set xs, x)
+                      in create_set l ;;
+
+let remove (s, elt) =
+  match s with
+  | Set (t, l) -> let rec f ls =
+                    match ls with
+                    | [] -> []
+                    | x :: xs -> if x = elt
+                                  then xs
+                                     else x :: f xs
+                    in Set (t, f l)
+  | _ -> failwith "Run-time error" ;;
+
+let is_empty s =
+  match s with
+  | Set (t, l) -> Bool (l = [])
+  | _ -> failwith "Run-time error" ;;
+
+let min_elt s =
+  match s with
+  | Set (t, l) -> (match t with
+                   | "int" -> let rec int_min ls =
+                                match ls with
+                                | [] -> Unbound
+                                | Int x :: [] -> Int x
+                                | Int x :: xs -> (match (int_min xs) with 
+                                                  | Int r -> if x < r 
+                                                              then Int x
+                                                                 else Int r
+                                                  | _ -> failwith "Run-time error")
+                                | _ -> failwith "Run-time error" 
+                                in int_min l     
+                   | "string" -> let rec string_min ls =
+                                   match ls with
+                                   | [] -> Unbound
+                                   | String x :: [] -> String x
+                                   | String x :: xs -> (match (string_min xs) with 
+                                                        | String r -> if x < r 
+                                                                       then String x
+                                                                          else String  r
+                                                        | _ -> failwith "Run-time error")
+                                   | _ -> failwith "Run-time error"
+                                   in string_min l
+                   | _ -> failwith "Run-time error")
+  | _ -> failwith "Run-time error" ;;
+
+let max_elt s =
+  match s with
+  | Set (t, l) -> (match t with
+                   | "int" -> let rec int_max ls =
+                                match ls with
+                                | [] -> Unbound
+                                | Int x :: [] -> Int x
+                                | Int x :: xs -> (match (int_max xs) with 
+                                                  | Int r -> if x > r 
+                                                              then Int x
+                                                                 else Int r
+                                                  | _ -> failwith "Run-time error")
+                                | _ -> failwith "Run-time error" 
+                                in int_max l     
+                   | "string" -> let rec string_max ls =
+                                   match ls with
+                                   | [] -> Unbound
+                                   | String x :: [] -> String x
+                                   | String x :: xs -> (match (string_max xs) with 
+                                                        | String r -> if x > r 
+                                                                       then String x
+                                                                          else String  r
+                                                        | _ -> failwith "Run-time error")
+                                   | _ -> failwith "Run-time error"
+                                   in string_max l
+                   | _ -> failwith "Run-time error")
+  | _ -> failwith "Run-time error" ;;
+
+let union (s1, s2) =
+  match s2 with
+  | Set (t2, l2) -> let rec create_set ls =
+                      match ls with
+                      | [] -> s1
+                      | x :: xs -> add (create_set xs, x)
+                      in create_set l2
+  | _ -> failwith "Run-time error" ;;
+
+let inter (s1, s2) =
+  match s1 with
+  | Set (t1, l1) -> let rec create_set ls =
+                      match ls with
+                      | [] -> set_empty t1
+                      | x :: xs -> if contains (s2, x) = Bool true
+                                    then add (create_set xs, x)
+                                       else create_set xs
+                      in create_set l1
+  | _ -> failwith "Run-time error" ;;
+
+let diff (s1, s2) =
+  match s1 with
+  | Set (t1, l1) -> let rec create_set ls =
+                      match ls with
+                      | [] -> set_empty t1
+                      | x :: xs -> if contains (s2, x) = Bool false
+                                    then add (create_set xs, x)
+                                       else create_set xs
+                      in create_set l1                                     
+  | _ -> failwith "Run-time error" ;;
+
+let subset (s1, s2) =
+  match s1 with
+  | Set (t1, l1) -> let rec check ls =
+                      match ls with
+                      | [] -> Bool true
+                      | x :: xs -> if contains (s2, x) = Bool true
+                                    then check xs
+                                       else Bool false
+                      in check l1
+  | _ -> failwith "Run-time error" ;;
+
+let rec eval (e:texp) (s:evT env) =
+  match e with
+  | CstInt n -> Int n
+  | CstString s -> String s
+  | CstTrue -> Bool true
+  | CstFalse -> Bool false
+  | Eq (e1, e2) -> int_eq ((eval e1 s), (eval e2 s))
+  | Times (e1, e2) -> int_times ((eval e1 s), (eval e2 s))
+  | Sum (e1, e2) -> int_sum ((eval e1 s), (eval e2 s))
+  | Sub (e1, e2) -> int_sub ((eval e1 s), (eval e2 s))
+  | Ifthenelse (e1, e2, e3) -> (match (eval e1 s) with
+                                | Bool true -> eval e2 s
+                                | Bool false -> eval e3 s
+                                | _ -> failwith "Run-time error")
+  | Den i -> lookup s i
+  | Let (i, e, ebody) -> eval ebody (bind s i (eval e s))
+  | Fun (arg, targ, ebody) -> Closure (arg, ebody, s)
+  | Letrec (f, arg, targ, fBody, tres, letBody) -> let benv = bind s f (RecClosure (f, arg, fBody, s)) in
+                                                     eval letBody benv
+  | Apply (eF, eArg) -> let fclosure = eval eF s in
+                          (match fclosure with
+                           | Closure (arg, fbody, fDecEnv) -> let aVal = eval eArg s in
+                                                                let aenv = bind fDecEnv arg aVal in
+                                                                  eval fbody aenv
+                           | RecClosure (f, arg, fbody, fDecEnv) -> let aVal = eval eArg s in
+                                                                      let rEnv = bind fDecEnv f fclosure in
+                                                                        let aenv = bind rEnv arg aVal in
+                                                                          eval fbody aenv
+                           | _ -> failwith "Run-time error")
+  | SetEmpty t -> set_empty t
+  | SetSingleton (t, elt) -> set_singleton (t, (eval elt s))
+  | SetOf (t, l) -> let rec f ls = 
+                      match ls with
+                      | [] -> []
+                      | x :: xs -> (eval x s) :: f xs
+                      in set_of (t, f l)
+  | Union (s1, s2) -> union ((eval s1 s), (eval s2 s))
+  | Inter (s1, s2) -> inter ((eval s1 s),(eval s2 s))
+  | Diff (s1, s2) -> diff ((eval s1 s), (eval s2 s))
+  | Add (s0, elt) -> add ((eval s0 s), (eval elt s))
+  | Remove (s0, elt) -> remove ((eval s0 s), (eval elt s))
+  | IsEmpty s0 -> is_empty (eval s0 s)
+  | Contains (s0, elt) ->  contains ((eval s0 s), (eval elt s))
+  | Subset (s1, s2) -> subset ((eval s1 s), (eval s2 s))
+  | MinElt s0 -> min_elt (eval s0 s)         
+  | MaxElt s0 -> max_elt (eval s0 s)
+  | For_all (p, s0) -> (match (eval s0 s) with
+                        | Set (t, l) -> (match (eval p s) with
+                                         | Closure (arg, fbody, fDecEnv) -> let rec check ls =
+                                                                              match ls with
+                                                                              | [] -> Bool true
+                                                                              | x :: xs -> let aenv = bind fDecEnv arg x in
+                                                                                             if (eval fbody aenv) = Bool true
+                                                                                              then check xs
+                                                                                                 else Bool false
+                                                                              in check l
+                                         | _ -> failwith "Run-time error")
+                        | _ -> failwith "Run-time error")
+  | Exists (p, s0) -> (match (eval s0 s) with
+                       | Set (t, l) -> (match (eval p s) with
+                                        | Closure (arg, fbody, fDecEnv) -> let rec check ls =
+                                                                             match ls with
+                                                                             | [] -> Bool false
+                                                                             | x :: xs -> let aenv = bind fDecEnv arg x in
+                                                                                            if (eval fbody aenv) = Bool true
+                                                                                             then Bool true 
+                                                                                                else check xs
+                                                                             in check l           
+                                        | _ -> failwith "Run-time error")
+                       | _ -> failwith "Run-time error")
+  | Filter (p, s0) -> (match (eval s0 s) with
+                       | Set (t, l) -> (match (eval p s) with
+                                        | Closure (arg, fbody, fDecEnv) -> let rec create_set ls =
+                                                                             match ls with
+                                                                             | [] -> set_empty t
+                                                                             | x :: xs -> let aenv = bind fDecEnv arg x in
+                                                                                            if (eval fbody aenv) = Bool true
+                                                                                             then add (create_set xs, x)
+                                                                                                else create_set xs
+                                                                             in create_set l           
+                                        | _ -> failwith "Run-time error")
+                       | _ -> failwith "Run-time error")
+  | Map (f, s0) -> (match (eval s0 s) with
+                    | Set (t, l) -> (match (eval f s) with
+                                     | Closure (arg, fbody, fDecEnv) -> let rec create_set ls =
+                                                                          match ls with
+                                                                          | [] -> set_empty type_res
+                                                                          | x :: xs -> let aenv = bind fDecEnv arg x in
+                                                                                         add (create_set xs, (eval fbody aenv))
+                                                                          in create_set l
+                                     | _ -> failwith "Run-time error")
+                    | _ -> failwith "Run-time error")
