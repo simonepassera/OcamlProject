@@ -69,8 +69,10 @@ let typecheck (x, y) =
               | _ -> false)
   | "fun" -> (match y with
               | Closure (arg, fbody, fDecEnv) -> true
-              | RecClosure (f, arg, fbody, fDecEnv) -> true
               | _ -> false)
+  | "recfun" -> (match y with 
+                 | RecClosure (f, arg, fbody, fDecEnv) -> true
+                 | _ -> false)
   | _ -> failwith "Not a valid type" ;;
 
 let type_elts_check t =
@@ -79,6 +81,7 @@ let type_elts_check t =
   | "string" -> true
   | "bool" -> true
   | "fun" -> true
+  | "recfun" -> true
   | _ -> false ;;
 
 let int_eq (x, y) =
@@ -164,7 +167,6 @@ let min_elt s =
   | (true, Set (t, l)) -> (match t with
                            | "int" -> let rec int_min ls =
                                         match ls with
-                                        | [] -> Unbound
                                         | Int x :: [] -> Int x
                                         | Int x :: xs -> (match (int_min xs) with 
                                                           | Int r -> if x < r 
@@ -175,7 +177,6 @@ let min_elt s =
                                         in int_min l     
                            | "string" -> let rec string_min ls =
                                             match ls with
-                                            | [] -> Unbound
                                             | String x :: [] -> String x
                                             | String x :: xs -> (match (string_min xs) with 
                                                                  | String r -> if x < r 
@@ -192,7 +193,6 @@ let max_elt s =
   | (true, Set (t, l)) -> (match t with
                            | "int" -> let rec int_max ls =
                                         match ls with
-                                        | [] -> Unbound
                                         | Int x :: [] -> Int x
                                         | Int x :: xs -> (match (int_max xs) with 
                                                           | Int r -> if x > r 
@@ -203,7 +203,6 @@ let max_elt s =
                                         in int_max l     
                            | "string" -> let rec string_max ls =
                                             match ls with
-                                            | [] -> Unbound
                                             | String x :: [] -> String x
                                             | String x :: xs -> (match (string_max xs) with 
                                                                  | String r -> if x > r 
@@ -277,9 +276,22 @@ let rec eval (e:exp) (s:evT env) =
   | Sub (e1, e2) -> int_sub ((eval e1 s), (eval e2 s))
   | Ifthenelse (e1, e2, e3) -> let g = eval e1 s in
                                  (match (typecheck ("bool", g), g) with
-                                  | (true, Bool true) -> eval e2 s
-                                  | (true, Bool false) -> eval e3 s
-                                  | (_, _) -> failwith "Not boolean guard")
+                                  | (true, Bool b) -> let rt = eval e2 s
+                                                        in let rf = eval e3 s
+                                                             in (match (typecheck ("int", rt), typecheck ("int", rf)) with
+                                                                 | (true, true) -> if b then rt else rf
+                                                                 | (_, _) -> (match (typecheck ("string", rt), typecheck ("string", rf)) with
+                                                                              | (true, true) -> if b then rt else rf
+                                                                              | (_, _) -> (match (typecheck ("bool", rt), typecheck ("bool", rf)) with
+                                                                                           | (true, true) -> if b then rt else rf
+                                                                                           | (_, _) -> (match (typecheck ("fun", rt), typecheck ("fun", rf)) with
+                                                                                                        | (true, true) -> if b then rt else rf
+                                                                                                        | (_, _)-> (match (typecheck ("recfun", rt), typecheck ("recfun", rf)) with
+                                                                                                                    | (true, true) -> if b then rt else rf
+                                                                                                                    | (_, _) -> (match (typecheck ("set", rt), typecheck ("set", rf)) with
+                                                                                                                                 | (true, true) -> if b then rt else rf
+                                                                                                                                 | (_, _) -> failwith "Run-time error"))))))
+                                  | (_, _) -> failwith "Run-time error")
   | Den i -> lookup s i
   | Let (i, e, ebody) -> eval ebody (bind s i (eval e s))
   | Fun (arg, ebody) -> Closure (arg, ebody, s)
@@ -294,7 +306,7 @@ let rec eval (e:exp) (s:evT env) =
                                                                       let rEnv = bind fDecEnv f fclosure in
                                                                         let aenv = bind rEnv arg aVal in
                                                                           eval fbody aenv
-                           | _ -> failwith "Not functional value")
+                           | _ -> failwith "Run-time error")
   | SetEmpty t -> set_empty t
   | SetSingleton (t, elt) -> set_singleton (t, (eval elt s))
   | SetOf (t, l) -> let rec f ls = 
