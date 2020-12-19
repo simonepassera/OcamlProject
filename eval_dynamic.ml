@@ -7,12 +7,11 @@ type tval =
 | Tfun of tval * tval
 | Trecfun of ide * tval * tval
 | Tset of tval
-| Unbound
-and ide = string
+and ide = string ;;
 
 type tenv = ide -> tval ;;
 
-let emptyTenv = fun (x:ide) -> Unbound ;;
+let emptyTenv = fun (x:ide) -> failwith "Empty type env" ;;
 
 let lookupTenv (e:tenv) (i:ide) = e i ;;
 
@@ -82,7 +81,7 @@ let set_op1 (s, elt) =
 let set_op2 s =
   match s with
   | Tset t -> if (t = Tint) || (t = Tstring)
-               then Tset t
+               then t
                   else failwith "Wrong type"
   | _ -> failwith "Wrong type" ;;
 
@@ -109,11 +108,9 @@ let rec teval (e:texp) (s:tenv) =
                                  (match g with
                                   | Tbool -> let t1 = teval e2 s in
                                                let t2 = teval e3 s in
-                                                 (match (t1, t2) with
-                                                  | (Tint, Tint) -> Tint
-                                                  | (Tbool, Tbool) -> Tbool
-                                                  | (Tstring, Tstring) -> Tstring
-                                                  | (_, _) -> failwith "Wrong type")
+                                                 if t1 <> t2
+                                                  then failwith "Wrong type"
+                                                     else t1
                                   | _ -> failwith "Wrong type")
   | Den i -> lookupTenv s i
   | Let (i, e, ebody) -> teval ebody (bindTenv s i (teval e s))
@@ -179,27 +176,29 @@ let rec teval (e:texp) (s:tenv) =
                        | (_, _) -> failwith "Wrong type")
 
   | Map (f, s0) -> (match (teval f s, teval s0 s) with
-                    | (Tfun (targ, tres), Tset t) -> if targ <> t
-                                                      then failwith "Wrong type"
-                                                         else Tset tres
+                    | (Tfun (targ, tres), Tset t0) -> if targ <> t0
+                                                       then failwith "Wrong type"
+                                                          else (match tres with
+                                                                | Tset t1 -> failwith "Wrong type"
+                                                                | _ -> Tset tres)
                     | (_, _) -> failwith "Wrong type")
 
 type 'v env = string -> 'v ;;
 
-type evT =
+type valT =
 | Int of int
 | String of string
 | Bool of bool
-| Closure of ide * texp * evT env
-| RecClosure of ide * ide * texp * evT env
-| Set of type_elts * (evT list)
+| Closure of ide * texp * valT env
+| RecClosure of ide * ide * texp * valT env
+| Set of type_elts * (valT list)
 | Unbound ;;
 
 let emptyEnv = fun (x:string) -> Unbound ;;
 
-let lookup (s:evT env) (i:string) = s i ;;
+let lookup (s:valT env) (i:string) = s i ;;
 
-let bind (e:evT env) (s:string) (v:evT) = fun c -> if c = s then v else lookup e c ;;
+let bind (e:valT env) (s:string) (v:valT) = fun c -> if c = s then v else lookup e c ;;
 
 let int_eq (x, y) =
   match (x, y) with
@@ -270,7 +269,6 @@ let min_elt s =
   | Set (t, l) -> (match t with
                    | "int" -> let rec int_min ls =
                                 match ls with
-                                | [] -> Unbound
                                 | Int x :: [] -> Int x
                                 | Int x :: xs -> (match (int_min xs) with 
                                                   | Int r -> if x < r 
@@ -281,7 +279,6 @@ let min_elt s =
                                 in int_min l     
                    | "string" -> let rec string_min ls =
                                    match ls with
-                                   | [] -> Unbound
                                    | String x :: [] -> String x
                                    | String x :: xs -> (match (string_min xs) with 
                                                         | String r -> if x < r 
@@ -298,7 +295,6 @@ let max_elt s =
   | Set (t, l) -> (match t with
                    | "int" -> let rec int_max ls =
                                 match ls with
-                                | [] -> Unbound
                                 | Int x :: [] -> Int x
                                 | Int x :: xs -> (match (int_max xs) with 
                                                   | Int r -> if x > r 
@@ -309,7 +305,6 @@ let max_elt s =
                                 in int_max l     
                    | "string" -> let rec string_max ls =
                                    match ls with
-                                   | [] -> Unbound
                                    | String x :: [] -> String x
                                    | String x :: xs -> (match (string_max xs) with 
                                                         | String r -> if x > r 
@@ -363,7 +358,7 @@ let subset (s1, s2) =
                       in check l1
   | _ -> failwith "Run-time error" ;;
 
-let rec eval (e:texp) (s:evT env) =
+let rec eval (e:texp) (s:valT env) =
   match e with
   | CstInt n -> Int n
   | CstString s -> String s
@@ -447,11 +442,18 @@ let rec eval (e:texp) (s:evT env) =
                        | _ -> failwith "Run-time error")
   | Map (f, s0) -> (match (eval s0 s) with
                     | Set (t, l) -> (match (eval f s) with
-                                     | Closure (arg, fbody, fDecEnv) -> let rec create_set ls =
-                                                                          match ls with
-                                                                          | [] -> set_empty type_res
-                                                                          | x :: xs -> let aenv = bind fDecEnv arg x in
-                                                                                         add (create_set xs, (eval fbody aenv))
-                                                                          in create_set l
+                                     | Closure (arg, fbody, fDecEnv) -> let type_res v =
+                                                                          match (eval fbody (bind fDecEnv arg v)) with
+                                                                          | Int r -> "int"
+                                                                          | String r -> "string"
+                                                                          | Bool r -> "bool"
+                                                                          | _ -> failwith "Run-time error"
+                                                                          in let rec create_set ls =
+                                                                               match ls with
+                                                                               | x :: [] -> set_empty (type_res x)
+                                                                               | x :: xs -> let aenv = bind fDecEnv arg x in
+                                                                                              add (create_set xs, (eval fbody aenv))
+                                                                               | _ -> failwith "Run-time error"
+                                                                               in create_set l
                                      | _ -> failwith "Run-time error")
                     | _ -> failwith "Run-time error")
