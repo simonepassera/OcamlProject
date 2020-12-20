@@ -1,4 +1,4 @@
-(* The language *)
+(* STATIC EVAL *)
 
 type tval =
 | Tint
