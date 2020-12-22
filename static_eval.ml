@@ -5,7 +5,7 @@ type tval =
 | Tstring
 | Tbool
 | Tfun of tval * tval
-| Trecfun of ide * tval * tval
+| Trecfun of tval * tval
 | Tset of tval
 and ide = string ;;
 
@@ -17,12 +17,20 @@ let lookupTenv (e:tenv) (i:ide) = e i ;;
 
 let bindTenv (e:tenv) (i:ide) (v:tval) = fun x -> if x = i then v else lookupTenv e x ;;
 
-let type_elts_check t =
+#load "str.cma" ;;
+
+let rec type_elts_check t =
   match t with
   | "int" -> Tint
   | "string" -> Tstring
   | "bool" -> Tbool
-  | _ -> failwith "Not a valid type for elements of set" ;;
+  | _ -> let r = Str.regexp "\\([a-z]+\\) (\\([a-z->() ]+\\) -> \\([a-z->() ]+\\))" in
+           if (Str.string_match r t 0)
+            then (match (Str.matched_group 1 t) with
+                  | "fun" -> Tfun (type_elts_check (Str.matched_group 2 t), type_elts_check (Str.matched_group 3 t))
+                  | "recfun" -> Trecfun (type_elts_check (Str.matched_group 2 t), type_elts_check (Str.matched_group 3 t))
+                  | _ -> failwith "Not a valid type for elements of set")
+               else failwith "Not a valid type for elements of set" ;;
 
 type texp =
 | CstInt of int
@@ -117,19 +125,19 @@ let rec teval (e:texp) (s:tenv) =
   | Fun (arg, targ, ebody) -> let env = bindTenv s arg targ in
                                 let tres = teval ebody env in
                                   Tfun (targ, tres)
-  | Letrec (f, arg, targ, fBody, tres, letBody) -> let renv = bindTenv s f (Trecfun (f, targ, tres)) in
+  | Letrec (f, arg, targ, fBody, tres, letBody) -> let renv = bindTenv s f (Trecfun (targ, tres)) in
                                                      let env = bindTenv renv arg targ in
                                                        if (teval fBody env) = tres
-                                                        then teval letBody (bindTenv s f (Trecfun (f, targ, tres)))
+                                                        then teval letBody (bindTenv s f (Trecfun (targ, tres)))
                                                            else failwith "Wrong type"
   | Apply (eF, eArg) -> let f = teval eF s in
                           (match f with
                            | Tfun (targ, tres) -> if (teval eArg s) = targ
                                                    then tres
                                                       else failwith "Wrong type"
-                           | Trecfun (f, targ, tres) -> if (teval eArg s) = targ
-                                                         then tres
-                                                            else failwith "Wrong type"
+                           | Trecfun (targ, tres) -> if (teval eArg s) = targ
+                                                      then tres
+                                                         else failwith "Wrong type"
                            | _ -> failwith "Wrong type")
   | SetEmpty t -> Tset (type_elts_check t)
   | SetSingleton (t, elt) -> let t1 = type_elts_check t in
