@@ -16,9 +16,9 @@ let emptyTenv = fun (x:ide) -> failwith "Empty type env" ;;
 let lookupTenv (e:tenv) (i:ide) = e i ;;
 
 let bindTenv (e:tenv) (i:ide) (v:tval) = fun x -> if x = i then v else lookupTenv e x ;;
-(*
+
 #load "str.cma" ;;
-*)
+
 let rec type_elts_check t =
   match t with
   | "int" -> Tint
@@ -201,7 +201,7 @@ let rec teval (e:texp) (s:tenv) =
                                                                 | _ -> Tset tres)
                     | (_, _) -> failwith "Wrong type")
 
-type 'v env = string -> 'v ;;
+type 'v env = (string * 'v) list ;;
 
 type valT =
 | Int of int
@@ -212,11 +212,17 @@ type valT =
 | Set of type_elts * (valT list)
 | Unbound ;;
 
-let emptyEnv = fun (x:string) -> Unbound ;;
+let emptyEnv = [("", Unbound)] ;;
 
-let lookup (s:valT env) (i:string) = s i ;;
+let rec lookup (s:valT env) (i:string) =
+  match s with
+  | [("", Unbound)] -> Unbound
+  | (x, v) :: s2 -> if x = i
+                     then v
+                        else lookup s2 i
+  | [] -> failwith "Wrong env" ;; 
 
-let bind (e:valT env) (s:string) (v:valT) = fun c -> if c = s then v else lookup e c ;;
+let bind (e:valT env) (s:string) (v:valT) = (s, v) :: e ;;
 
 let int_sum (x, y) =
   match(x, y) with
