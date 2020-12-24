@@ -17,7 +17,9 @@ let lookupTenv (e:tenv) (i:ide) = e i ;;
 
 let bindTenv (e:tenv) (i:ide) (v:tval) = fun x -> if x = i then v else lookupTenv e x ;;
 
+(*
 #load "str.cma" ;;
+*)
 
 let rec type_elts_check t =
   match t with
@@ -106,19 +108,9 @@ let rec teval (e:texp) (s:tenv) =
   | CstString s -> Tstring
   | CstTrue -> Tbool
   | CstFalse -> Tbool
-  | Eq (e1, e2) -> let t1 = teval e1 s in
-                     (match t1 with
-                      | Tfun (targ, tres) -> failwith "Wrong type"
-                      | Trecfun (targ, tres) -> failwith "Wrong type"
-                      | Tset t -> (match t with
-                                   | Tfun (targ2, tres2) -> failwith "Wrong type"
-                                   | Trecfun (targ2, tres2) -> failwith "Wrong type"
-                                   | _ -> if t1 = (teval e2 s)
-                                           then Tbool 
-                                              else failwith "Wrong type")
-                      | _ -> if t1 = (teval e2 s)
-                              then Tbool 
-                                 else failwith "Wrong type")
+  | Eq (e1, e2) -> if (teval e1 s) = (teval e2 s)
+                    then Tbool 
+                       else failwith "Wrong type"
   | Times (e1, e2) -> int_op (teval e1 s, teval e2 s)                          
   | Sum (e1, e2) -> int_op (teval e1 s, teval e2 s)
   | Sub (e1, e2) -> int_op (teval e1 s, teval e2 s)
@@ -368,13 +360,10 @@ let diff (s1, s2) =
 
 let eq (x, y) =
   match (x, y) with
-  | (Int v, Int w) -> Bool (v = w)
-  | (String v, String w) -> Bool (v = w)
-  | (Bool v, Bool w) -> Bool (v = w)
   | (Set (t1, l1), Set (t2, l2)) -> if (is_empty (diff (x, y))) = Bool true
                                      then is_empty (diff (y, x))
                                         else Bool false
-  | (_, _) -> failwith "Run-time error" ;;
+  | (_, _) -> Bool (x = y) ;;
 
 let subset (s1, s2) =
   match s1 with
