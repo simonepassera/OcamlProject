@@ -6,6 +6,8 @@ type tval =
 | Tbool
 | Tfun of tval * tval
 | Trecfun of tval * tval
+| Tlist of tval
+| Temptylist
 | Tset of tval
 and ide = string ;;
 
@@ -17,9 +19,7 @@ let lookupTenv (e:tenv) (i:ide) = e i ;;
 
 let bindTenv (e:tenv) (i:ide) (v:tval) = fun x -> if x = i then v else lookupTenv e x ;;
 
-(*
 #load "str.cma" ;;
-*)
 
 let rec type_elts_check t =
   match t with
@@ -49,9 +49,10 @@ type texp =
 | Fun of ide * tval * texp
 | Letrec of ide * ide * tval * texp * tval * texp
 | Apply of texp * texp
+| List of texp list
 | SetEmpty of type_elts
 | SetSingleton of type_elts * texp
-| SetOf of type_elts * elts
+| SetOf of type_elts * texp
 | Union of texp * texp
 | Inter of texp * texp
 | Diff of texp * texp
@@ -66,8 +67,7 @@ type texp =
 | Exists of texp * texp
 | Filter of texp * texp
 | Map of texp * texp
-and type_elts = string
-and elts = texp list ;;
+and type_elts = string ;;
 
 let int_op (t1, t2) =
   match (t1, t2) with
@@ -141,22 +141,28 @@ let rec teval (e:texp) (s:tenv) =
                                                       then tres
                                                          else failwith "Wrong type"
                            | _ -> failwith "Wrong type")
+  | List l -> if l = []
+               then Temptylist
+                  else let t1 = teval (List.nth l 0) s in
+                         let rec check ls = 
+                           match ls with
+                           | [] -> Tlist t1
+                           | x :: xs -> let tx = teval x s in
+                                          if tx = t1
+                                           then check xs
+                                              else failwith "Wrong type"
+                           in check l
   | SetEmpty t -> Tset (type_elts_check t)
   | SetSingleton (t, elt) -> let t1 = type_elts_check t in
                                if t1 = (teval elt s)
                                 then Tset t1
                                    else failwith "Wrong type"
   | SetOf (t, l) -> let t1 = type_elts_check t in 
-                      if l = []
-                       then failwith "Wrong type"
-                          else let rec check ls = 
-                                 match ls with
-                                 | [] -> Tset t1
-                                 | x :: xs -> let tx = teval x s in
-                                                if tx = t1
-                                                 then check xs
-                                                    else failwith "Wrong type"
-                                 in check l
+                      (match (teval l s) with
+                       | Tlist tl -> if tl = t1
+                                      then Tset t1
+                                         else failwith "Wrong type"
+                       | _ -> failwith "Wrong type")
   | Union (s1, s2) -> set_op0 (teval s1 s, teval s2 s)
   | Inter (s1, s2) -> set_op0 (teval s1 s, teval s2 s)
   | Diff (s1, s2) -> set_op0 (teval s1 s, teval s2 s)
@@ -188,9 +194,7 @@ let rec teval (e:texp) (s:tenv) =
   | Map (f, s0) -> (match (teval f s, teval s0 s) with
                     | (Tfun (targ, tres), Tset t0) -> if targ <> t0
                                                        then failwith "Wrong type"
-                                                          else (match tres with
-                                                                | Tset t1 -> failwith "Wrong type"
-                                                                | _ -> Tset tres)
+                                                          else Tlist tres
                     | (_, _) -> failwith "Wrong type")
 
 type 'v env = (string * 'v) list ;;
@@ -201,7 +205,8 @@ type valT =
 | Bool of bool
 | Closure of ide * texp * valT env
 | RecClosure of ide * ide * texp * valT env
-| Set of type_elts * (valT list)
+| List_val of valT list
+| Set of type_elts * valT
 | Unbound ;;
 
 let emptyEnv = [("", Unbound)] ;;
@@ -233,147 +238,150 @@ let int_times (x, y) =
 
 let contains (s, elt) =
   match s with
-  | Set (t, l) -> let rec f (ls, e) =
-                    match ls with
-                    | [] -> false
-                    | x :: xs -> if x = elt
-                                  then true
-                                     else f (xs, e)
-                    in Bool (f (l, elt))
+  | Set (t, List_val l) -> let rec f (ls, e) =
+                             match ls with
+                             | [] -> false
+                             | x :: xs -> if x = elt
+                                           then true
+                                              else f (xs, e)
+                             in Bool (f (l, elt))
   | _ -> failwith "Run-time error" ;;
 
 let add (s, elt) =
   match s with
-  | Set (t, l) -> if contains (s, elt) = Bool true
-                   then Set (t, l)
-                      else Set (t, elt :: l)
+  | Set (t, List_val l) -> if contains (s, elt) = Bool true
+                            then Set (t, List_val l)
+                               else Set (t, List_val (elt :: l))
   | _ -> failwith "Run-time error" ;;
 
-let set_empty t = Set (t, []) ;;
+let set_empty t = Set (t, List_val []) ;;
 
 let set_singleton (t, elt) = add (set_empty t, elt) ;;
 
-let set_of (t, l) = let rec create_set ls =
-                      match ls with
-                      | [] -> set_empty t
-                      | x :: xs -> add (create_set xs, x)
-                      in create_set l ;;
+let set_of (t, l) = 
+  match l with
+  | List_val le -> let rec create_set ls =
+                     match ls with
+                     | [] -> set_empty t
+                     | x :: xs -> add (create_set xs, x)
+                     in create_set le
+  | _ -> failwith "Run-time error" ;;
 
 let remove (s, elt) =
   match s with
-  | Set (t, l) -> let rec f ls =
-                    match ls with
-                    | [] -> []
-                    | x :: xs -> if x = elt
-                                  then xs
-                                     else x :: f xs
-                    in Set (t, f l)
+  | Set (t, List_val l) -> let rec f ls =
+                             match ls with
+                             | [] -> []
+                             | x :: xs -> if x = elt
+                                           then xs
+                                              else x :: f xs
+                             in Set (t, List_val (f l))
   | _ -> failwith "Run-time error" ;;
 
 let is_empty s =
   match s with
-  | Set (t, l) -> Bool (l = [])
+  | Set (t, List_val l) -> Bool (l = [])
   | _ -> failwith "Run-time error" ;;
 
 let min_elt s =
   match s with
-  | Set (t, l) -> (match t with
-                   | "int" -> let rec int_min ls =
-                                match ls with
-                                | Int x :: [] -> Int x
-                                | Int x :: xs -> (match (int_min xs) with 
-                                                  | Int r -> if x < r 
-                                                              then Int x
-                                                                 else Int r
-                                                  | _ -> failwith "Run-time error")
-                                | _ -> failwith "Run-time error" 
-                                in int_min l     
-                   | "string" -> let rec string_min ls =
-                                   match ls with
-                                   | String x :: [] -> String x
-                                   | String x :: xs -> (match (string_min xs) with 
-                                                        | String r -> if x < r 
-                                                                       then String x
-                                                                          else String  r
-                                                        | _ -> failwith "Run-time error")
-                                   | _ -> failwith "Run-time error"
-                                   in string_min l
-                   | _ -> failwith "Run-time error")
+  | Set (t, List_val l) -> (match t with
+                            | "int" -> let rec int_min ls =
+                                         match ls with
+                                         | Int x :: [] -> Int x
+                                         | Int x :: xs -> (match (int_min xs) with 
+                                                           | Int r -> if x < r 
+                                                                       then Int x
+                                                                          else Int r
+                                                           | _ -> failwith "Run-time error")
+                                         | _ -> failwith "Run-time error" 
+                                         in int_min l     
+                            | "string" -> let rec string_min ls =
+                                            match ls with
+                                            | String x :: [] -> String x
+                                            | String x :: xs -> (match (string_min xs) with 
+                                                                 | String r -> if x < r 
+                                                                                then String x
+                                                                                   else String  r
+                                                                 | _ -> failwith "Run-time error")
+                                            | _ -> failwith "Run-time error"
+                                            in string_min l
+                            | _ -> failwith "Run-time error")
   | _ -> failwith "Run-time error" ;;
 
 let max_elt s =
   match s with
-  | Set (t, l) -> (match t with
-                   | "int" -> let rec int_max ls =
-                                match ls with
-                                | Int x :: [] -> Int x
-                                | Int x :: xs -> (match (int_max xs) with 
-                                                  | Int r -> if x > r 
-                                                              then Int x
-                                                                 else Int r
-                                                  | _ -> failwith "Run-time error")
-                                | _ -> failwith "Run-time error" 
-                                in int_max l     
-                   | "string" -> let rec string_max ls =
-                                   match ls with
-                                   | String x :: [] -> String x
-                                   | String x :: xs -> (match (string_max xs) with 
-                                                        | String r -> if x > r 
-                                                                       then String x
-                                                                          else String  r
-                                                        | _ -> failwith "Run-time error")
-                                   | _ -> failwith "Run-time error"
-                                   in string_max l
-                   | _ -> failwith "Run-time error")
+  | Set (t, List_val l) -> (match t with
+                            | "int" -> let rec int_max ls =
+                                         match ls with
+                                         | Int x :: [] -> Int x
+                                         | Int x :: xs -> (match (int_max xs) with 
+                                                           | Int r -> if x > r 
+                                                                       then Int x
+                                                                          else Int r
+                                                           | _ -> failwith "Run-time error")
+                                         | _ -> failwith "Run-time error" 
+                                         in int_max l     
+                            | "string" -> let rec string_max ls =
+                                            match ls with
+                                            | String x :: [] -> String x
+                                            | String x :: xs -> (match (string_max xs) with 
+                                                                 | String r -> if x > r 
+                                                                                then String x
+                                                                                   else String  r
+                                                                 | _ -> failwith "Run-time error")
+                                            | _ -> failwith "Run-time error"
+                                            in string_max l
+                            | _ -> failwith "Run-time error")
   | _ -> failwith "Run-time error" ;;
 
 let union (s1, s2) =
   match s2 with
-  | Set (t2, l2) -> let rec create_set ls =
-                      match ls with
-                      | [] -> s1
-                      | x :: xs -> add (create_set xs, x)
-                      in create_set l2
+  | Set (t2, List_val l2) -> let rec create_set ls =
+                               match ls with
+                               | [] -> s1
+                               | x :: xs -> add (create_set xs, x)
+                               in create_set l2
   | _ -> failwith "Run-time error" ;;
 
 let inter (s1, s2) =
   match s1 with
-  | Set (t1, l1) -> let rec create_set ls =
-                      match ls with
-                      | [] -> set_empty t1
-                      | x :: xs -> if contains (s2, x) = Bool true
-                                    then add (create_set xs, x)
-                                       else create_set xs
-                      in create_set l1
+  | Set (t1, List_val l1) -> let rec create_set ls =
+                               match ls with
+                               | [] -> set_empty t1
+                               | x :: xs -> if contains (s2, x) = Bool true
+                                             then add (create_set xs, x)
+                                                else create_set xs
+                               in create_set l1
   | _ -> failwith "Run-time error" ;;
 
 let diff (s1, s2) =
   match s1 with
-  | Set (t1, l1) -> let rec create_set ls =
-                      match ls with
-                      | [] -> set_empty t1
-                      | x :: xs -> if contains (s2, x) = Bool false
-                                    then add (create_set xs, x)
-                                       else create_set xs
-                      in create_set l1                                     
+  | Set (t1, List_val l1) -> let rec create_set ls =
+                               match ls with
+                               | [] -> set_empty t1
+                               | x :: xs -> if contains (s2, x) = Bool false
+                                             then add (create_set xs, x)
+                                                else create_set xs
+                               in create_set l1                                     
   | _ -> failwith "Run-time error" ;;
 
 let eq (x, y) =
   match (x, y) with
-  | (Set (t1, l1), Set (t2, l2)) -> if (is_empty (diff (x, y))) = Bool true
-                                     then is_empty (diff (y, x))
-                                        else Bool false
+  | (Set (t1, List_val l1), Set (t2, List_val l2)) -> if (is_empty (diff (x, y))) = Bool true
+                                                       then is_empty (diff (y, x))
+                                                          else Bool false
   | (_, _) -> Bool (x = y) ;;
 
 let subset (s1, s2) =
   match s1 with
-  | Set (t1, l1) -> let rec check ls =
-                      match ls with
-                      | [] -> Bool true
-                      | x :: xs -> if contains (s2, x) = Bool true
-                                    then check xs
-                                       else Bool false
-                      in check l1
+  | Set (t1, List_val l1) -> let rec check ls =
+                               match ls with
+                               | [] -> Bool true
+                               | x :: xs -> if contains (s2, x) = Bool true
+                                             then check xs
+                                                else Bool false
+                               in check l1
   | _ -> failwith "Run-time error" ;;
 
 let rec eval (e:texp) (s:valT env) =
@@ -405,13 +413,14 @@ let rec eval (e:texp) (s:valT env) =
                                                                         let aenv = bind rEnv arg aVal in
                                                                           eval fbody aenv
                            | _ -> failwith "Run-time error")
+  | List l -> let rec f ls = 
+                match ls with
+                | [] -> []
+                | x :: xs -> (eval x s) :: f xs
+                in List_val (f l)
   | SetEmpty t -> set_empty t
   | SetSingleton (t, elt) -> set_singleton (t, (eval elt s))
-  | SetOf (t, l) -> let rec f ls = 
-                      match ls with
-                      | [] -> []
-                      | x :: xs -> (eval x s) :: f xs
-                      in set_of (t, f l)
+  | SetOf (t, l) -> set_of (t, eval l s)
   | Union (s1, s2) -> union ((eval s1 s), (eval s2 s))
   | Inter (s1, s2) -> inter ((eval s1 s),(eval s2 s))
   | Diff (s1, s2) -> diff ((eval s1 s), (eval s2 s))
@@ -423,55 +432,48 @@ let rec eval (e:texp) (s:valT env) =
   | MinElt s0 -> min_elt (eval s0 s)         
   | MaxElt s0 -> max_elt (eval s0 s)
   | For_all (p, s0) -> (match (eval s0 s) with
-                        | Set (t, l) -> (match (eval p s) with
-                                         | Closure (arg, fbody, fDecEnv) -> let rec check ls =
-                                                                              match ls with
-                                                                              | [] -> Bool true
-                                                                              | x :: xs -> let aenv = bind fDecEnv arg x in
-                                                                                             if (eval fbody aenv) = Bool true
-                                                                                              then check xs
-                                                                                                 else Bool false
-                                                                              in check l
+                        | Set (t, List_val l) -> (match (eval p s) with
+                                                  | Closure (arg, fbody, fDecEnv) -> let rec check ls =
+                                                                                       match ls with
+                                                                                       | [] -> Bool true
+                                                                                       | x :: xs -> let aenv = bind fDecEnv arg x in
+                                                                                                      if (eval fbody aenv) = Bool true
+                                                                                                       then check xs
+                                                                                                          else Bool false
+                                                                                       in check l
                                          | _ -> failwith "Run-time error")
                         | _ -> failwith "Run-time error")
   | Exists (p, s0) -> (match (eval s0 s) with
-                       | Set (t, l) -> (match (eval p s) with
-                                        | Closure (arg, fbody, fDecEnv) -> let rec check ls =
-                                                                             match ls with
-                                                                             | [] -> Bool false
-                                                                             | x :: xs -> let aenv = bind fDecEnv arg x in
-                                                                                            if (eval fbody aenv) = Bool true
-                                                                                             then Bool true 
-                                                                                                else check xs
-                                                                             in check l           
+                       | Set (t, List_val l) -> (match (eval p s) with
+                                                 | Closure (arg, fbody, fDecEnv) -> let rec check ls =
+                                                                                      match ls with
+                                                                                      | [] -> Bool false
+                                                                                      | x :: xs -> let aenv = bind fDecEnv arg x in
+                                                                                                     if (eval fbody aenv) = Bool true
+                                                                                                      then Bool true 
+                                                                                                         else check xs
+                                                                                      in check l           
                                         | _ -> failwith "Run-time error")
                        | _ -> failwith "Run-time error")
   | Filter (p, s0) -> (match (eval s0 s) with
-                       | Set (t, l) -> (match (eval p s) with
-                                        | Closure (arg, fbody, fDecEnv) -> let rec create_set ls =
-                                                                             match ls with
-                                                                             | [] -> set_empty t
-                                                                             | x :: xs -> let aenv = bind fDecEnv arg x in
-                                                                                            if (eval fbody aenv) = Bool true
-                                                                                             then add (create_set xs, x)
-                                                                                                else create_set xs
-                                                                             in create_set l           
+                       | Set (t, List_val l) -> (match (eval p s) with
+                                                 | Closure (arg, fbody, fDecEnv) -> let rec create_set ls =
+                                                                                      match ls with
+                                                                                      | [] -> set_empty t
+                                                                                      | x :: xs -> let aenv = bind fDecEnv arg x in
+                                                                                                     if (eval fbody aenv) = Bool true
+                                                                                                      then add (create_set xs, x)
+                                                                                                         else create_set xs
+                                                                                      in create_set l           
                                         | _ -> failwith "Run-time error")
                        | _ -> failwith "Run-time error")
   | Map (f, s0) -> (match (eval s0 s) with
-                    | Set (t, l) -> (match (eval f s) with
-                                     | Closure (arg, fbody, fDecEnv) -> let type_res v =
-                                                                          match (eval fbody (bind fDecEnv arg v)) with
-                                                                          | Int r -> "int"
-                                                                          | String r -> "string"
-                                                                          | Bool r -> "bool"
-                                                                          | _ -> failwith "Run-time error"
-                                                                          in let rec create_set ls =
-                                                                               match ls with
-                                                                               | x :: [] -> set_empty (type_res x)
-                                                                               | x :: xs -> let aenv = bind fDecEnv arg x in
-                                                                                              add (create_set xs, (eval fbody aenv))
-                                                                               | _ -> failwith "Run-time error"
-                                                                               in create_set l
-                                     | _ -> failwith "Run-time error")
+                    | Set (t, List_val l) -> (match (eval f s) with
+                                              | Closure (arg, fbody, fDecEnv) -> let rec create_list ls =
+                                                                                   match ls with
+                                                                                   | [] -> []
+                                                                                   | x :: xs -> let aenv = bind fDecEnv arg x in
+                                                                                                  (eval fbody aenv) :: xs
+                                                                                   in List_val (create_list l)
+                                              | _ -> failwith "Run-time error")
                     | _ -> failwith "Run-time error")
