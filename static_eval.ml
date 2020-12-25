@@ -420,14 +420,14 @@ let rec eval (e:texp) (s:valT env) =
                 in List_val (f l)
   | SetEmpty t -> set_empty t
   | SetSingleton (t, elt) -> set_singleton (t, (eval elt s))
-  | SetOf (t, l) -> set_of (t, eval l s)
+  | SetOf (t, l) -> set_of (t, (eval l s))
   | Union (s1, s2) -> union ((eval s1 s), (eval s2 s))
   | Inter (s1, s2) -> inter ((eval s1 s),(eval s2 s))
   | Diff (s1, s2) -> diff ((eval s1 s), (eval s2 s))
   | Add (s0, elt) -> add ((eval s0 s), (eval elt s))
   | Remove (s0, elt) -> remove ((eval s0 s), (eval elt s))
   | IsEmpty s0 -> is_empty (eval s0 s)
-  | Contains (s0, elt) ->  contains ((eval s0 s), (eval elt s))
+  | Contains (s0, elt) -> contains ((eval s0 s), (eval elt s))
   | Subset (s1, s2) -> subset ((eval s1 s), (eval s2 s))
   | MinElt s0 -> min_elt (eval s0 s)         
   | MaxElt s0 -> max_elt (eval s0 s)
@@ -473,7 +473,7 @@ let rec eval (e:texp) (s:valT env) =
                                                                                    match ls with
                                                                                    | [] -> []
                                                                                    | x :: xs -> let aenv = bind fDecEnv arg x in
-                                                                                                  (eval fbody aenv) :: xs
+                                                                                                  (eval fbody aenv) :: (create_list xs)
                                                                                    in List_val (create_list l)
                                               | _ -> failwith "Run-time error")
                     | _ -> failwith "Run-time error")
