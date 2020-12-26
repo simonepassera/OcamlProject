@@ -130,7 +130,7 @@ let rec teval (e:texp) (s:tenv) =
   | Letrec (f, arg, targ, fBody, tres, letBody) -> let renv = bindTenv s f (Trecfun (targ, tres)) in
                                                      let env = bindTenv renv arg targ in
                                                        if (teval fBody env) = tres
-                                                        then teval letBody (bindTenv s f (Trecfun (targ, tres)))
+                                                        then teval letBody renv
                                                            else failwith "Wrong type"
   | Apply (eF, eArg) -> let f = teval eF s in
                           (match f with
