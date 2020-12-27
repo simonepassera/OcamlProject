@@ -21,19 +21,56 @@ let bindTenv (e:tenv) (i:ide) (v:tval) = fun x -> if x = i then v else lookupTen
 
 #load "str.cma" ;;
 
-let rec type_elts_check t =
-  match t with
-  | "int" -> Tint
-  | "string" -> Tstring
-  | "bool" -> Tbool
-  | _ -> let r = Str.regexp "\\([a-z]+\\) (\\([a-z->() ]+\\) -> \\([a-z->() ]+\\))" in
-           if (Str.string_match r t 0)
-            then (match (Str.matched_group 1 t) with
-                  | "fun" -> Tfun (type_elts_check (Str.matched_group 2 t), type_elts_check (Str.matched_group 3 t))
-                  | "recfun" -> Trecfun (type_elts_check (Str.matched_group 2 t), type_elts_check (Str.matched_group 3 t))
-                  | _ -> failwith "Not a valid type for elements of set")
-               else failwith "Not a valid type for elements of set" ;;
+let parentheses str =
+  let rec loop np nc l =
+    if nc = l
+     then -1
+        else match str.[nc] with
+             | '(' -> loop (np + 1) (nc + 1) l
+             | ')' -> if (np - 1) = 0
+                       then nc
+                          else loop (np - 1) (nc + 1) l
+             | _ -> loop np (nc + 1) l
+    in loop 0 0 (String.length str) ;;
 
+let type_param s =
+  let nc1 = parentheses s in
+    if nc1 = -1
+     then failwith "Not a valid type for elements of set"
+        else let arg = Str.string_after (Str.string_before s nc1) 1 in
+               let str = Str.string_after s (nc1 + 5) in
+                 let nc2 = parentheses str in
+                   if nc2 = -1
+                    then failwith "Not a valid type for elements of set"
+                       else (arg, Str.string_after (Str.string_before str nc2) 1) ;;
+                       
+let rec type_elts_check str =
+  let rec type_res t =
+    match t with
+    | "int" -> Tint
+    | "string" -> Tstring
+    | "bool" -> Tbool
+    | "emptylist" -> Temptylist
+    | _ -> let r1 = Str.regexp "\\([a-z]+\\) (\\([a-z>() -]+\\))" in
+             if (Str.string_match r1 t 0)
+              then (match (Str.matched_group 1 t) with
+                   | "list" -> Tlist (type_res (Str.matched_group 2 t))
+                   | "set" -> Tset (type_elts_check (Str.matched_group 2 t))
+                   | "fun" -> (match (type_param (Str.matched_group 2 t)) with
+                               | (arg, res) -> Tfun (type_res arg, type_res res))
+                   | "recfun" -> (match (type_param (Str.matched_group 2 t)) with
+                                  | (arg, res) -> Trecfun (type_res arg, type_res res))
+                   | _ -> failwith "Not a valid type for elements of set")
+                 else failwith "Not a valid type for elements of set"
+    in let r0 = Str.regexp "\\([a-z]+\\) (\\([a-z>() -]+\\))" in
+         if (Str.string_match r0 str 0)
+          then match (Str.matched_group 1 str) with
+               | "list" -> failwith "Not a valid type for elements of set"
+               | "emptylist" -> failwith "Not a valid type for elements of set"
+               | "set" -> failwith "Not a valid type for elements of set"
+               | _ -> type_res str
+             else type_res str ;;
+               
 type texp =
 | CstInt of int
 | CstString of string
