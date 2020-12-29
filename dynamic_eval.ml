@@ -346,15 +346,15 @@ let set_empty t =
 let set_singleton (t, elt) = add (set_empty t, elt) ;;
 
 let set_of (t, l) =
-  match (type_elts_check t, l) with
-  | (true, List_val lv) -> if lv = []
-                            then failwith "Run-time error"
-                               else let rec create_set ls =
-                                      match ls with
-                                      | [] -> set_empty t
-                                      | x :: xs -> add (create_set xs, x)
-                                      in create_set lv    
-  | (_, _) -> failwith "Run-time error" ;;
+  match (type_elts_check t, typecheck ("list", l),  l) with
+  | (true, true, List_val lv) -> if lv = []
+                                  then failwith "Run-time error"
+                                     else let rec create_set ls =
+                                            match ls with
+                                            | [] -> set_empty t
+                                            | x :: xs -> add (create_set xs, x)
+                                            in create_set lv    
+  | (_, _, _) -> failwith "Run-time error" ;;
 
 let remove (s, elt) =
   match (typecheck ("set", s), s) with
