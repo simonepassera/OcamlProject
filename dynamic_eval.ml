@@ -232,7 +232,11 @@ let rec typecheck (x, y) =
                                                                                         | Temptylist -> (match (teval fbody env) with
                                                                                                          | Temptylist -> true
                                                                                                          | Tlist tl -> true
-                                                                                                         | _ -> false)                                                                                                         
+                                                                                                         | _ -> false)
+                                                                                        | Tlist tl -> (match (teval fbody env) with
+                                                                                                       | Temptylist -> true
+                                                                                                       | Tlist tl -> true
+                                                                                                       | _ -> false)                                                                                            
                                                                                         | _ -> if tval_res = (teval fbody env)
                                                                                                 then true
                                                                                                    else false))
@@ -258,7 +262,11 @@ let rec typecheck (x, y) =
                                                                                                   | Temptylist -> (match (teval fbody env) with
                                                                                                                    | Temptylist -> true
                                                                                                                    | Tlist tl -> true
-                                                                                                                   | _ -> false)                                                                                                         
+                                                                                                                   | _ -> false)    
+                                                                                                  | Tlist tl -> (match (teval fbody env) with
+                                                                                                                 | Temptylist -> true
+                                                                                                                 | Tlist tl -> true
+                                                                                                                 | _ -> false)                                                                                                     
                                                                                                   | _ -> if tval_res = (teval fbody env)
                                                                                                           then true
                                                                                                              else false))
