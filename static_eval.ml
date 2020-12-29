@@ -1,5 +1,7 @@
 (* STATIC EVAL *)
 
+#load "str.cma" ;;
+
 type tval =
 | Tint
 | Tstring
@@ -18,8 +20,6 @@ let emptyTenv = fun (x:ide) -> failwith "Empty type env" ;;
 let lookupTenv (e:tenv) (i:ide) = e i ;;
 
 let bindTenv (e:tenv) (i:ide) (v:tval) = fun x -> if x = i then v else lookupTenv e x ;;
-
-#load "str.cma" ;;
 
 let parentheses str =
   let rec loop np nc l =
@@ -513,4 +513,37 @@ let rec eval (e:texp) (s:valT env) =
                                                                                                   (eval fbody aenv) :: (create_list xs)
                                                                                    in List_val (create_list l)
                                               | _ -> failwith "Run-time error")
-                    | _ -> failwith "Run-time error")
+                    | _ -> failwith "Run-time error") ;;
+
+print_endline "\n\nTEST CstInt" ;;
+print_endline "\n\nTEST CstString" ;;
+print_endline "\n\nTEST CstTrue" ;;
+print_endline "\n\nTEST CstFalse" ;;
+print_endline "\n\nTEST Den" ;;
+print_endline "\n\nTEST Sum" ;;
+print_endline "\n\nTEST Sub" ;;
+print_endline "\n\nTEST Times" ;;
+print_endline "\n\nTEST Ifthenelse" ;;
+print_endline "\n\nTEST Eq" ;;
+print_endline "\n\nTEST Let" ;;
+print_endline "\n\nTEST Fun" ;;
+print_endline "\n\nTEST Letrec" ;;
+print_endline "\n\nTEST Apply" ;;
+print_endline "\n\nTEST List" ;;
+print_endline "\n\nTEST SetEmpty" ;;
+print_endline "\n\nTEST SetSingleton" ;;
+print_endline "\n\nTEST SetOf" ;;
+print_endline "\n\nTEST Union" ;;
+print_endline "\n\nTEST Inter" ;;
+print_endline "\n\nTEST Diff" ;;
+print_endline "\n\nTEST Add" ;;
+print_endline "\n\nTEST Remove" ;;
+print_endline "\n\nTEST IsEmpty" ;;
+print_endline "\n\nTEST Contains" ;;
+print_endline "\n\nTEST Subset" ;; 
+print_endline "\n\nTEST MinElt" ;;
+print_endline "\n\nTEST MaxElt" ;;
+print_endline "\n\nTEST For_all" ;;
+print_endline "\n\nTEST Exists" ;;
+print_endline "\n\nTEST Filter" ;;
+print_endline "\n\nTEST Map" ;;
