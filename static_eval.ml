@@ -11,6 +11,7 @@ type tval =
 | Tlist of tval
 | Temptylist
 | Tset of tval
+| Terror
 and ide = string ;;
 
 type tenv = ide -> tval ;;
@@ -244,7 +245,8 @@ type valT =
 | RecClosure of ide * ide * texp * valT env
 | List_val of valT list
 | Set of type_elts * valT
-| Unbound ;;
+| Unbound
+| Error ;;
 
 let emptyEnv = [("", Unbound)] ;;
 
@@ -516,34 +518,279 @@ let rec eval (e:texp) (s:valT env) =
                     | _ -> failwith "Run-time error") ;;
 
 print_endline "\n\nTEST CstInt" ;;
+let t = CstInt 5 ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+
 print_endline "\n\nTEST CstString" ;;
+let t = CstString "string-test" ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+
 print_endline "\n\nTEST CstTrue" ;;
+let t = CstTrue ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+
 print_endline "\n\nTEST CstFalse" ;;
-print_endline "\n\nTEST Den" ;;
-print_endline "\n\nTEST Sum" ;;
-print_endline "\n\nTEST Sub" ;;
-print_endline "\n\nTEST Times" ;;
-print_endline "\n\nTEST Ifthenelse" ;;
-print_endline "\n\nTEST Eq" ;;
+let t = CstFalse ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+
 print_endline "\n\nTEST Let" ;;
+let t = Let ("x", CstInt 3, CstTrue) ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+
+print_endline "\n\nTEST Den" ;;
+let t = Let ("x", CstInt 3, Den "x") ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+
+print_endline "\n\nTEST Sum" ;;
+let t = Let ("x", CstInt 5, Let ("y", CstInt 7, Sum (Den "x", Den "y"))) ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let t = Let ("x", CstInt 5, Let ("y", CstString "string-test", Sum (Den "x", Den "y"))) ;;
+try teval t emptyTenv with e -> print_endline (Printexc.to_string e) ; Terror ;;
+
+print_endline "\n\nTEST Sub" ;;
+let t = Let ("x", CstInt 5, Let ("y", CstInt 7, Sub (Den "x", Den "y"))) ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let t = Let ("x", CstInt 5, Let ("y", CstString "string-test", Sub (Den "x", Den "y"))) ;;
+try teval t emptyTenv with e -> print_endline (Printexc.to_string e) ; Terror ;;
+
+print_endline "\n\nTEST Times" ;;
+let t = Let ("x", CstInt 5, Let ("y", CstInt 7, Times (Den "x", Den "y"))) ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let t = Let ("x", CstInt 5, Let ("y", CstString "string-test", Times (Den "x", Den "y"))) ;;
+try teval t emptyTenv with e -> print_endline (Printexc.to_string e) ; Terror ;;
+
+print_endline "\n\nTEST Ifthenelse" ;;
+let t = Let ("x", CstInt 5, Ifthenelse (CstTrue, CstInt 7, Sum (Den "x", CstInt 3))) ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let t = Let ("x", CstInt 5, Ifthenelse (CstTrue, CstString "string-test", Sum (Den "x", CstInt 3))) ;;
+try teval t emptyTenv with e -> print_endline (Printexc.to_string e) ; Terror ;;
+
 print_endline "\n\nTEST Fun" ;;
+let t = Let ("f", Fun ("x", Tint, Sum (Den "x", CstInt 3)), Den "f") ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let t = Let ("f", Fun ("x", Tstring, Sum (Den "x", CstInt 3)), Den "f") ;;
+try teval t emptyTenv with e -> print_endline (Printexc.to_string e) ; Terror ;;
+
 print_endline "\n\nTEST Letrec" ;;
+let t = Letrec ("f", "x", Tint, Ifthenelse (Eq (Den "x", CstInt 0), CstTrue, Apply (Den "f", Sub (Den "x", CstInt 1))), Tbool, Den "f") ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let t = Letrec ("f", "x", Tint, Ifthenelse (Eq (Den "x", CstInt 0), CstTrue, Apply (Den "f", Sub (Den "x", CstInt 1))), Tint, Den "f") ;;
+try teval t emptyTenv with e -> print_endline (Printexc.to_string e) ; Terror ;;
+
 print_endline "\n\nTEST Apply" ;;
+let t = Letrec ("f", "x", Tint, Ifthenelse (Eq (Den "x", CstInt 0), CstTrue, Apply (Den "f", Sub (Den "x", CstInt 1))), Tbool, Apply (Den "f", CstInt 4)) ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let t = Letrec ("f", "x", Tint, Ifthenelse (Eq (Den "x", CstInt 0), CstTrue, Apply (Den "f", Sub (Den "x", CstInt 1))), Tint, Apply (Den "f", CstFalse)) ;;
+try teval t emptyTenv with e -> print_endline (Printexc.to_string e) ; Terror ;;
+
 print_endline "\n\nTEST List" ;;
+let t = List [CstInt 3; CstInt 5];;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let t = List [];;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let t = List [CstInt 3; CstTrue];;
+try teval t emptyTenv with e -> print_endline (Printexc.to_string e) ; Terror ;;
+
 print_endline "\n\nTEST SetEmpty" ;;
+let t = SetEmpty "int" ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let t = SetEmpty "fun ((fun ((list (int)) -> (set (int)))) -> (bool))" ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let t = SetEmpty "set (int)" ;;
+try teval t emptyTenv with e -> print_endline (Printexc.to_string e) ; Terror ;;
+
 print_endline "\n\nTEST SetSingleton" ;;
+let t = SetSingleton ("int", CstInt 3) ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let t = SetSingleton ("int", CstString "string-test") ;;
+try teval t emptyTenv with e -> print_endline (Printexc.to_string e) ; Terror ;;
+
 print_endline "\n\nTEST SetOf" ;;
-print_endline "\n\nTEST Union" ;;
-print_endline "\n\nTEST Inter" ;;
-print_endline "\n\nTEST Diff" ;;
+let t = SetOf ("string", List ([CstString "string1"; CstString "string2"])) ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let t = SetOf ("string", List ([CstString "string1"; CstInt 3])) ;;
+try teval t emptyTenv with e -> print_endline (Printexc.to_string e) ; Terror ;;
+
 print_endline "\n\nTEST Add" ;;
+let set = SetSingleton ("int", CstInt 3) ;;
+let t = Add (set, CstInt 4) ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let t = Add (set, CstInt 4) ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let t = Add (set, CstTrue) ;;
+try teval t emptyTenv with e -> print_endline (Printexc.to_string e) ; Terror ;;
+let set2 = SetEmpty "fun ((int) -> (bool))" ;;
+let t = Add (set2, Fun ("x", Tint, Ifthenelse(Eq (Den "x", CstInt 0), CstTrue, CstFalse))) ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+
 print_endline "\n\nTEST Remove" ;;
+let set = SetSingleton ("int", CstInt 3) ;;
+let t = Remove (set, CstInt 4) ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let t = Remove (set, CstInt 3) ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let t = Remove (set, CstTrue) ;;
+try teval t emptyTenv with e -> print_endline (Printexc.to_string e) ; Terror ;;
+
+print_endline "\n\nTEST Union" ;;
+let set1 = SetOf ("int", List [CstInt 3; CstInt 4; CstInt 6]) ;;
+let set2 = SetOf ("int", List [CstInt 7; CstInt 9; CstInt 4]) ;;
+let t = Union (set1, set2);;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let set3 = SetEmpty "string" ;;
+let t = Union (set3, set3);;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+
+print_endline "\n\nTEST Inter" ;;
+let set1 = SetOf ("int", List [CstInt 3; CstInt 4; CstInt 6]) ;;
+let set2 = SetOf ("int", List [CstInt 7; CstInt 9; CstInt 4]) ;;
+let t = Inter (set1, set2);;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let set3 = SetEmpty "string" ;;
+let t = Inter (set3, set3);;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+
+print_endline "\n\nTEST Diff" ;;
+let set1 = SetOf ("int", List [CstInt 3; CstInt 4; CstInt 6]) ;;
+let set2 = SetOf ("int", List [CstInt 7; CstInt 9; CstInt 4]) ;;
+let t = Diff (set1, set2);;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let set3 = SetEmpty "string" ;;
+let t = Diff (set3, set3);;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let t = Diff (set2, set1);;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+
+print_endline "\n\nTEST Subset" ;;
+let set1 = SetOf ("int", List [CstInt 9; CstInt 4]) ;;
+let set2 = SetOf ("int", List [CstInt 7; CstInt 9; CstInt 4]) ;;
+let t = Subset (set1, set2);;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let set3 = SetEmpty "string" ;;
+let t = Subset (set3, set3);;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let t = Subset (set2, set1);;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+
+print_endline "\n\nTEST Eq" ;;
+let set1 = SetOf ("int", List [CstInt 9; CstInt 4; CstInt 7]) ;;
+let set2 = SetOf ("int", List [CstInt 7; CstInt 9; CstInt 4]) ;;
+let t = Eq (set1, set2);;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let t = Eq (List [CstInt 2; CstInt 5], List [CstInt 5; CstInt 2]) ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let t = Eq (CstInt 5, CstString "string-test") ;;
+try teval t emptyTenv with e -> print_endline (Printexc.to_string e) ; Terror ;;
+
 print_endline "\n\nTEST IsEmpty" ;;
+let set1 = SetOf ("int", List [CstInt 9; CstInt 4]) ;;
+let t = IsEmpty set1 ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let set2 = SetEmpty "string" ;;
+let t = IsEmpty set2 ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+
 print_endline "\n\nTEST Contains" ;;
-print_endline "\n\nTEST Subset" ;; 
+let set = SetOf ("int", List [CstInt 9; CstInt 4; CstInt 7]) ;;
+let t = Contains (set, CstInt 7);;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let t = Contains (set, CstString "string-test");;
+try teval t emptyTenv with e -> print_endline (Printexc.to_string e) ; Terror ;;
+
 print_endline "\n\nTEST MinElt" ;;
+let set1 = SetOf ("int", List [CstInt 47; CstInt 6; CstInt 17]) ;;
+let t = MinElt set ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let set2 =  SetOf ("string", List [CstString "rosso"; CstString "verde"; CstString "blu"]) ;;
+let t = MinElt set2 ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let set3 = SetSingleton ("bool", CstFalse) ;;
+let t = MinElt set3 ;;
+try teval t emptyTenv with e -> print_endline (Printexc.to_string e) ; Terror ;;
+
 print_endline "\n\nTEST MaxElt" ;;
+let set1 = SetOf ("int", List [CstInt 47; CstInt 6; CstInt 17]) ;;
+let t = MaxElt set ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let set2 =  SetOf ("string", List [CstString "rosso"; CstString "verde"; CstString "blu"]) ;;
+let t = MaxElt set2 ;;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let set3 = SetEmpty "int" ;;
+let t = MaxElt set3 ;;
+teval t emptyTenv ;;
+try eval t emptyEnv with e -> print_endline (Printexc.to_string e) ; Error ;;
+
 print_endline "\n\nTEST For_all" ;;
+let set = SetOf ("int", List [CstInt 3; CstInt 6; CstInt 8])
+let f = Fun ("x", Tint, Eq (CstInt 10, Den "x" )) ;;
+let t = For_all (f, set);;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+let f = Fun ("x", Tint, CstString "string-test") ;;
+let t = For_all (f, set);;
+try teval t emptyTenv with e -> print_endline (Printexc.to_string e) ; Terror ;;
+
 print_endline "\n\nTEST Exists" ;;
+let set = SetOf ("int", List [CstInt 3; CstInt 6; CstInt 8])
+let f = Fun ("x", Tint, Eq (CstInt 6, Den "x" )) ;;
+let t = Exists (f, set);;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+
 print_endline "\n\nTEST Filter" ;;
+let set = SetOf ("int", List [CstInt 3; CstInt 6; CstInt 8])
+let f = Fun ("x", Tint, Eq (CstInt 6, Den "x" )) ;;
+let t = Filter (f, set);;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+
 print_endline "\n\nTEST Map" ;;
+let set = SetOf ("int", List [CstInt 3; CstInt 6; CstInt 8])
+let f = Fun ("x", Tint, Sum (CstInt 2, Den "x" )) ;;
+let t = Map (f, set);;
+teval t emptyTenv ;;
+eval t emptyEnv ;;
+
