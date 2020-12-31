@@ -48,7 +48,8 @@ type evT =
 | RecClosure of ide * ide * exp * evT env
 | List_val of evT list
 | Set of type_elts * evT
-| Unbound ;;
+| Unbound
+| Error ;;
 
 let emptyEnv = [("", Unbound)] ;;
 
@@ -468,7 +469,7 @@ let diff (s1, s2) =
 let eq (x, y) =
   match (typecheck ("int", x), typecheck ("int", y), x, y) with
   | (true, true, Int v, Int w) -> Bool (v = w)
-  | (_, _, _, _) -> (match (typecheck ("string", x), typecheck ("sring", y), x, y) with
+  | (_, _, _, _) -> (match (typecheck ("string", x), typecheck ("string", y), x, y) with
                      | (true, true, String v, String w) -> Bool (v = w)
                      | (_, _, _, _) -> (match (typecheck ("bool", x), typecheck ("bool", y), x, y) with
                                         | (true, true, Bool v, Bool w) -> Bool (v = w)
@@ -509,23 +510,9 @@ let rec eval (e:exp) (s:evT env) =
   | Sub (e1, e2) -> int_sub ((eval e1 s), (eval e2 s))
   | Ifthenelse (e1, e2, e3) -> let g = eval e1 s in
                                  (match (typecheck ("bool", g), g) with
-                                  | (true, Bool b) -> let rt = eval e2 s
-                                                        in let rf = eval e3 s
-                                                             in (match (typecheck ("int", rt), typecheck ("int", rf)) with
-                                                                 | (true, true) -> if b then rt else rf
-                                                                 | (_, _) -> (match (typecheck ("string", rt), typecheck ("string", rf)) with
-                                                                              | (true, true) -> if b then rt else rf
-                                                                              | (_, _) -> (match (typecheck ("bool", rt), typecheck ("bool", rf)) with
-                                                                                           | (true, true) -> if b then rt else rf
-                                                                                           | (_, _) -> (match (typecheck ("list", rt), typecheck ("list", rf)) with
-                                                                                                        | (true, true) -> if b then rt else rf
-                                                                                                        | (_, _)-> (match (typecheck ("fun", rt), typecheck ("fun", rf)) with
-                                                                                                                    | (true, true) -> if b then rt else rf
-                                                                                                                    | (_, _)-> (match (typecheck ("recfun", rt), typecheck ("recfun", rf)) with
-                                                                                                                                | (true, true) -> if b then rt else rf
-                                                                                                                                | (_, _) -> (match (typecheck ("set", rt), typecheck ("set", rf)) with
-                                                                                                                                             | (true, true) -> if b then rt else rf
-                                                                                                                                             | (_, _) -> failwith "Run-time error")))))))
+                                  | (true, Bool b) -> if b
+                                                       then eval e2 s
+                                                          else eval e3 s
                                   | (_, _) -> failwith "Run-time error")
   | Den i -> lookup s i
   | Let (i, e, ebody) -> eval ebody (bind s i (eval e s))
@@ -628,34 +615,226 @@ let rec eval (e:exp) (s:evT env) =
                         | (_, _) -> failwith "Run-time error") ;;
 
 print_endline "\n\nTEST CstInt" ;;
+let t = CstInt 5 ;;
+eval t emptyEnv ;;
+
 print_endline "\n\nTEST CstString" ;;
+let t = CstString "string-test" ;;
+eval t emptyEnv ;;
+
 print_endline "\n\nTEST CstTrue" ;;
+let t = CstTrue ;;
+eval t emptyEnv ;;
+
 print_endline "\n\nTEST CstFalse" ;;
-print_endline "\n\nTEST Den" ;;
-print_endline "\n\nTEST Sum" ;;
-print_endline "\n\nTEST Sub" ;;
-print_endline "\n\nTEST Times" ;;
-print_endline "\n\nTEST Ifthenelse" ;;
-print_endline "\n\nTEST Eq" ;;
+let t = CstFalse ;;
+eval t emptyEnv ;;
+
 print_endline "\n\nTEST Let" ;;
+let t = Let ("x", CstInt 3, CstTrue) ;;
+eval t emptyEnv ;;
+
+print_endline "\n\nTEST Den" ;;
+let t = Let ("x", CstInt 3, Den "x") ;;
+eval t emptyEnv ;;
+
+print_endline "\n\nTEST Sum" ;;
+let t = Let ("x", CstInt 5, Let ("y", CstInt 7, Sum (Den "x", Den "y"))) ;;
+eval t emptyEnv ;;
+let t = Let ("x", CstInt 5, Let ("y", CstString "string-test", Sum (Den "x", Den "y"))) ;;
+try eval t emptyEnv with e -> print_endline (Printexc.to_string e) ; Error ;;
+
+print_endline "\n\nTEST Sub" ;;
+let t = Let ("x", CstInt 5, Let ("y", CstInt 7, Sub (Den "x", Den "y"))) ;;
+eval t emptyEnv ;;
+let t = Let ("x", CstInt 5, Let ("y", CstString "string-test", Sub (Den "x", Den "y"))) ;;
+try eval t emptyEnv with e -> print_endline (Printexc.to_string e) ; Error ;;
+
+print_endline "\n\nTEST Times" ;;
+let t = Let ("x", CstInt 5, Let ("y", CstInt 7, Times (Den "x", Den "y"))) ;;
+eval t emptyEnv ;;
+let t = Let ("x", CstInt 5, Let ("y", CstString "string-test", Times (Den "x", Den "y"))) ;;
+try eval t emptyEnv with e -> print_endline (Printexc.to_string e) ; Error ;;
+
+print_endline "\n\nTEST Ifthenelse" ;;
+let t = Let ("x", CstInt 5, Ifthenelse (CstTrue, CstInt 7, Sum (Den "x", CstInt 3))) ;;
+eval t emptyEnv ;;
+let t = Let ("x", CstInt 5, Ifthenelse (CstTrue, CstString "string-test", Sum (Den "x", CstInt 3))) ;;
+try eval t emptyEnv with e -> print_endline (Printexc.to_string e) ; Error ;;
+
 print_endline "\n\nTEST Fun" ;;
+let t = Let ("f", Fun ("x", Sum (Den "x", CstInt 3)), Den "f") ;;
+eval t emptyEnv ;;
+
 print_endline "\n\nTEST Letrec" ;;
+let t = Letrec ("f", "x", Ifthenelse (Eq (Den "x", CstInt 0), CstTrue, Apply (Den "f", Sub (Den "x", CstInt 1))), Den "f") ;;
+eval t emptyEnv ;;
+
 print_endline "\n\nTEST Apply" ;;
+let t = Letrec ("f", "x", Ifthenelse (Eq (Den "x", CstInt 0), CstTrue, Apply (Den "f", Sub (Den "x", CstInt 1))), Apply (Den "f", CstInt 4)) ;;
+eval t emptyEnv ;;
+let t = Letrec ("f", "x", Ifthenelse (Eq (Den "x", CstInt 0), CstTrue, Apply (Den "f", Sub (Den "x", CstInt 1))), Apply (Den "f", CstFalse)) ;;
+try eval t emptyEnv with e -> print_endline (Printexc.to_string e) ; Error ;;
+
 print_endline "\n\nTEST List" ;;
+let t = List [CstInt 3; CstInt 5];;
+eval t emptyEnv ;;
+let t = List [];;
+eval t emptyEnv ;;
+let t = List [CstInt 3; CstTrue];;
+try eval t emptyEnv with e -> print_endline (Printexc.to_string e) ; Error ;;
+
 print_endline "\n\nTEST SetEmpty" ;;
+let t = SetEmpty "int" ;;
+eval t emptyEnv ;;
+let t = SetEmpty "fun ((fun ((list (int)) -> (set (int)))) -> (bool))" ;;
+eval t emptyEnv ;;
+let t = SetEmpty "set (int)" ;;
+try eval t emptyEnv with e -> print_endline (Printexc.to_string e) ; Error ;;
+
 print_endline "\n\nTEST SetSingleton" ;;
+let t = SetSingleton ("int", CstInt 3) ;;
+eval t emptyEnv ;;
+let t = SetSingleton ("int", CstString "string-test") ;;
+try eval t emptyEnv with e -> print_endline (Printexc.to_string e) ; Error ;;
+
 print_endline "\n\nTEST SetOf" ;;
-print_endline "\n\nTEST Union" ;;
-print_endline "\n\nTEST Inter" ;;
-print_endline "\n\nTEST Diff" ;;
+let t = SetOf ("string", List ([CstString "string1"; CstString "string2"])) ;;
+eval t emptyEnv ;;
+let t = SetOf ("string", List ([CstString "string1"; CstInt 3])) ;;
+try eval t emptyEnv with e -> print_endline (Printexc.to_string e) ; Error ;;
+
 print_endline "\n\nTEST Add" ;;
+let set = SetSingleton ("int", CstInt 3) ;;
+let t = Add (set, CstInt 4) ;;
+eval t emptyEnv ;;
+let t = Add (set, CstInt 4) ;;
+eval t emptyEnv ;;
+let t = Add (set, CstTrue) ;;
+try eval t emptyEnv with e -> print_endline (Printexc.to_string e) ; Error ;;
+let set2 = SetEmpty "fun ((int) -> (bool))" ;;
+let t = Add (set2, Fun ("x", Ifthenelse(Eq (Den "x", CstInt 0), CstTrue, CstFalse))) ;;
+eval t emptyEnv ;;
+
 print_endline "\n\nTEST Remove" ;;
+let set = SetSingleton ("int", CstInt 3) ;;
+let t = Remove (set, CstInt 4) ;;
+eval t emptyEnv ;;
+let t = Remove (set, CstInt 3) ;;
+eval t emptyEnv ;;
+let t = Remove (set, CstTrue) ;;
+try eval t emptyEnv with e -> print_endline (Printexc.to_string e) ; Error ;;
+
+print_endline "\n\nTEST Union" ;;
+let set1 = SetOf ("int", List [CstInt 3; CstInt 4; CstInt 6]) ;;
+let set2 = SetOf ("int", List [CstInt 7; CstInt 9; CstInt 4]) ;;
+let t = Union (set1, set2);;
+eval t emptyEnv ;;
+let set3 = SetEmpty "string" ;;
+let t = Union (set3, set3);;
+eval t emptyEnv ;;
+
+print_endline "\n\nTEST Inter" ;;
+let set1 = SetOf ("int", List [CstInt 3; CstInt 4; CstInt 6]) ;;
+let set2 = SetOf ("int", List [CstInt 7; CstInt 9; CstInt 4]) ;;
+let t = Inter (set1, set2);;
+eval t emptyEnv ;;
+let set3 = SetEmpty "string" ;;
+let t = Inter (set3, set3);;
+eval t emptyEnv ;;
+
+print_endline "\n\nTEST Diff" ;;
+let set1 = SetOf ("int", List [CstInt 3; CstInt 4; CstInt 6]) ;;
+let set2 = SetOf ("int", List [CstInt 7; CstInt 9; CstInt 4]) ;;
+let t = Diff (set1, set2);;
+eval t emptyEnv ;;
+let set3 = SetEmpty "string" ;;
+let t = Diff (set3, set3);;
+eval t emptyEnv ;;
+let t = Diff (set2, set1);;
+eval t emptyEnv ;;
+
+print_endline "\n\nTEST Subset" ;;
+let set1 = SetOf ("int", List [CstInt 9; CstInt 4]) ;;
+let set2 = SetOf ("int", List [CstInt 7; CstInt 9; CstInt 4]) ;;
+let t = Subset (set1, set2) ;;
+eval t emptyEnv ;;
+let set3 = SetEmpty "string" ;;
+let t = Subset (set3, set3) ;;
+eval t emptyEnv ;;
+let t = Subset (set2, set1) ;;
+eval t emptyEnv ;;
+
+print_endline "\n\nTEST Eq" ;;
+let set1 = SetOf ("int", List [CstInt 9; CstInt 4; CstInt 7]) ;;
+let set2 = SetOf ("int", List [CstInt 7; CstInt 9; CstInt 4]) ;;
+let t = Eq (set1, set2);;
+eval t emptyEnv ;;
+let t = Eq (List [CstInt 2; CstInt 5], List [CstInt 5; CstInt 2]) ;;
+eval t emptyEnv ;;
+let t = Eq (CstInt 5, CstString "string-test") ;;
+try eval t emptyEnv with e -> print_endline (Printexc.to_string e) ; Error ;;
+
 print_endline "\n\nTEST IsEmpty" ;;
+let set1 = SetOf ("int", List [CstInt 9; CstInt 4]) ;;
+let t = IsEmpty set1 ;;
+eval t emptyEnv ;;
+let set2 = SetEmpty "string" ;;
+let t = IsEmpty set2 ;;
+eval t emptyEnv ;;
+
 print_endline "\n\nTEST Contains" ;;
-print_endline "\n\nTEST Subset" ;; 
+let set = SetOf ("int", List [CstInt 9; CstInt 4; CstInt 7]) ;;
+let t = Contains (set, CstInt 7);;
+eval t emptyEnv ;;
+let t = Contains (set, CstString "string-test");;
+try eval t emptyEnv with e -> print_endline (Printexc.to_string e) ; Error ;;
+
 print_endline "\n\nTEST MinElt" ;;
+let set1 = SetOf ("int", List [CstInt 47; CstInt 6; CstInt 17]) ;;
+let t = MinElt set ;;
+eval t emptyEnv ;;
+let set2 =  SetOf ("string", List [CstString "rosso"; CstString "verde"; CstString "blu"]) ;;
+let t = MinElt set2 ;;
+eval t emptyEnv ;;
+let set3 = SetSingleton ("bool", CstFalse) ;;
+let t = MinElt set3 ;;
+try eval t emptyEnv with e -> print_endline (Printexc.to_string e) ; Error ;;
+
 print_endline "\n\nTEST MaxElt" ;;
+let set1 = SetOf ("int", List [CstInt 47; CstInt 6; CstInt 17]) ;;
+let t = MaxElt set ;;
+eval t emptyEnv ;;
+let set2 =  SetOf ("string", List [CstString "rosso"; CstString "verde"; CstString "blu"]) ;;
+let t = MaxElt set2 ;;
+eval t emptyEnv ;;
+let set3 = SetEmpty "int" ;;
+let t = MaxElt set3 ;;
+try eval t emptyEnv with e -> print_endline (Printexc.to_string e) ; Error ;;
+
 print_endline "\n\nTEST For_all" ;;
+let set = SetOf ("int", List [CstInt 3; CstInt 6; CstInt 8])
+let f = Fun ("x", Eq (CstInt 10, Den "x" )) ;;
+let t = For_all (f, set);;
+eval t emptyEnv ;;
+let f = Fun ("x", CstString "string-test") ;;
+let t = For_all (f, set);;
+try eval t emptyEnv with e -> print_endline (Printexc.to_string e) ; Error ;;
+
 print_endline "\n\nTEST Exists" ;;
+let set = SetOf ("int", List [CstInt 3; CstInt 6; CstInt 8])
+let f = Fun ("x", Eq (CstInt 6, Den "x" )) ;;
+let t = Exists (f, set);;
+eval t emptyEnv ;;
+
 print_endline "\n\nTEST Filter" ;;
+let set = SetOf ("int", List [CstInt 3; CstInt 6; CstInt 8])
+let f = Fun ("x", Eq (CstInt 6, Den "x" )) ;;
+let t = Filter (f, set);;
+eval t emptyEnv ;;
+
 print_endline "\n\nTEST Map" ;;
+let set = SetOf ("int", List [CstInt 3; CstInt 6; CstInt 8])
+let f = Fun ("x", Sum (CstInt 2, Den "x" )) ;;
+let t = Map (f, set);;
+eval t emptyEnv ;;
