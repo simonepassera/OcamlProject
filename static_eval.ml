@@ -2,16 +2,17 @@
 
 #load "str.cma" ;;
 
+(* Possibili valori di tipo *)
 type tval =
 | Tint
 | Tstring
 | Tbool
-| Tfun of tval * tval
-| Trecfun of tval * tval
+| Tfun of tval * tval (* Tfun (targ, tres) *)
+| Trecfun of tval * tval (* Trecfun (targ, tres) *)
 | Tlist of tval
 | Temptylist
 | Tset of tval
-| Terror
+| Terror (* Costruttore introdotto per la fase di test *)
 and ide = string ;;
 
 type tenv = ide -> tval ;;
@@ -22,6 +23,7 @@ let lookupTenv (e:tenv) (i:ide) = e i ;;
 
 let bindTenv (e:tenv) (i:ide) (v:tval) = fun x -> if x = i then v else lookupTenv e x ;;
 
+(* Funzione che restituisce il numero di caratteri presenti tra due parentesi *)
 let parentheses str =
   let rec loop np nc l =
     if nc = l
@@ -34,6 +36,7 @@ let parentheses str =
              | _ -> loop np (nc + 1) l
     in loop 0 0 (String.length str) ;;
 
+(* Funzione che restituisce la coppia (arg, res), estratta dalla stringa (arg) -> (res) *)
 let type_param s =
   let nc1 = parentheses s in
     if nc1 = -1
@@ -84,13 +87,13 @@ type texp =
 | Ifthenelse of texp * texp * texp
 | Eq of texp * texp
 | Let of ide * texp * texp
-| Fun of ide * tval * texp
-| Letrec of ide * ide * tval * texp * tval * texp
+| Fun of ide * tval * texp (* Fun (arg, targ, body) *)
+| Letrec of ide * ide * tval * texp * tval * texp (* Letrec (f, arg, targ, fBody, tres, letBody) *)
 | Apply of texp * texp
 | List of texp list
 | SetEmpty of type_elts
 | SetSingleton of type_elts * texp
-| SetOf of type_elts * texp
+| SetOf of type_elts * texp (* SetOf (type_elts, List [texp1; texp2, ..., texpn]) *)
 | Union of texp * texp
 | Inter of texp * texp
 | Diff of texp * texp
@@ -237,16 +240,17 @@ let rec teval (e:texp) (s:tenv) =
 
 type 'v env = (string * 'v) list ;;
 
+(* Valori primitivi della macchina astratta*)
 type valT =
 | Int of int
 | String of string
 | Bool of bool
-| Closure of ide * texp * valT env
-| RecClosure of ide * ide * texp * valT env
+| Closure of ide * texp * valT env (* Closure (arg, fBody, fDecEnv) *)
+| RecClosure of ide * ide * texp * valT env (* RecClosure (f, arg, fBody, fDecEnv) *)
 | List_val of valT list
 | Set of type_elts * valT
 | Unbound
-| Error ;;
+| Error (* Costruttore introdotto per la fase di test *) ;;
 
 let emptyEnv = [("", Unbound)] ;;
 

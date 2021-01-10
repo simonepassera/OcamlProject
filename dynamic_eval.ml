@@ -14,13 +14,13 @@ type exp =
 | Ifthenelse of exp * exp * exp
 | Eq of exp * exp
 | Let of ide * exp * exp
-| Fun of ide * exp
-| Letrec of ide * ide * exp * exp
+| Fun of ide * exp (* Fun (arg, body) *)
+| Letrec of ide * ide * exp * exp (* Letrec (f, arg, fBody, letBody) *)
 | Apply of exp * exp
 | List of exp list
 | SetEmpty of type_elts
 | SetSingleton of type_elts * exp
-| SetOf of type_elts * exp
+| SetOf of type_elts * exp (* SetOf (type_elts, List [exp1; exp2, ..., expn]) *)
 | Union of exp * exp
 | Inter of exp * exp
 | Diff of exp * exp
@@ -40,16 +40,17 @@ and type_elts = string ;;
 
 type 'v env = (string * 'v) list ;;
 
+(* Valori esprimibili (Descrittori di tipo) *)
 type evT =
 | Int of int
 | String of string
 | Bool of bool
-| Closure of ide * exp * evT env
-| RecClosure of ide * ide * exp * evT env
+| Closure of ide * exp * evT env (* Closure (arg, fBody, fDecEnv) *)
+| RecClosure of ide * ide * exp * evT env (* RecClosure (f, arg, fBody, fDecEnv) *)
 | List_val of evT list
 | Set of type_elts * evT
 | Unbound
-| Error ;;
+| Error (* Costruttore introdotto per la fase di test *) ;;
 
 let emptyEnv = [("", Unbound)] ;;
 
@@ -63,12 +64,13 @@ let rec lookup (s:evT env) (i:string) =
 
 let bind (e:evT env) (s:string) (v:evT) = (s, v) :: e ;;
 
+(* Possibili valori di tipo *)
 type tval =
 | Tint
 | Tstring
 | Tbool
-| Tfun of tval * tval
-| Trecfun of tval * tval
+| Tfun of tval * tval (* Tfun (targ, tres) *)
+| Trecfun of tval * tval (* Trecfun (targ, tres) *)
 | Tfunval of ide * exp
 | Trecfunval of ide * ide * exp
 | Tlist of tval
@@ -83,6 +85,7 @@ let lookupTenv (e:tenv) (i:ide) = e i ;;
 
 let bindTenv (e:tenv) (i:ide) (v:tval) = fun x -> if x = i then v else lookupTenv e x ;;
 
+(* Funzione che restituisce la stringa associata ad un valore esprimibile *)
 let type_string v =
   match v with
   | Int i -> "int"
@@ -94,6 +97,7 @@ let type_string v =
   | Set (t, List_val l) -> "set"
   | _ -> failwith "Run-time error" ;;
 
+(* Funzione che restituisce il numero di caratteri presenti tra due parentesi *)
 let parentheses str =
   let rec loop np nc l =
     if nc = l
@@ -106,6 +110,7 @@ let parentheses str =
              | _ -> loop np (nc + 1) l
     in loop 0 0 (String.length str) ;;
 
+(* Funzione che restituisce la coppia (arg, res), estratta dalla stringa (arg) -> (res) *)
 let type_param s =
   let nc1 = parentheses s in
     if nc1 = -1
@@ -117,6 +122,7 @@ let type_param s =
                     then failwith "Run-time error"
                        else (arg, Str.string_after (Str.string_before str nc2) 1) ;;
 
+(* Funzione usata nel typecheck per convertire il tipo stringa nel tipo tval *)
 let rec type_return t =
   match t with
   | "int" -> Tint
@@ -135,6 +141,7 @@ let rec type_return t =
                   | _ -> failwith "Run-time error")
                else failwith "Run-time error"
 
+(* Funzione che valuta il corpo di una funzione e restituisce il tipo più generale associato al risultato del corpo della funzione *)
 let rec teval (e:exp) (s:tenv) =
   match e with
   | CstInt n -> Tint
@@ -189,6 +196,7 @@ let rec teval (e:exp) (s:tenv) =
                                                            Tlist (teval ebody env)
                     | (_, _) -> failwith "Run-time error") ;;
 
+(* Typecheck dinamico *)
 let rec typecheck (x, y) =
   match x with
   | "int" -> (match y with
@@ -276,7 +284,8 @@ let rec typecheck (x, y) =
                                  | _ -> false)
                   | _ -> failwith "Run-time error")
                else failwith "Run-time error" ;;
-                       
+
+(* Funzione che controlla la correttezza del tipo di un insieme *)   
 let rec type_elts_check str =
   let rec type_res t =
     match t with
