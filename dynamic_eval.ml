@@ -299,7 +299,7 @@ let rec type_elts_check str =
                     | "list" -> type_res (Str.matched_group 2 t)
                     | "set" -> type_elts_check (Str.matched_group 2 t)
                     | "fun" -> (match (type_param (Str.matched_group 2 t)) with
-                                | (arg, res) -> (type_res arg) &&  (type_res res))
+                                | (arg, res) -> (type_res arg) && (type_res res))
                     | "recfun" -> (match (type_param (Str.matched_group 2 t)) with
                                    | (arg, res) -> (type_res arg) && (type_res res))
                     | _ -> failwith "Not a valid type for elements of set")
