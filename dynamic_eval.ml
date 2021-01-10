@@ -296,13 +296,13 @@ let rec type_elts_check str =
     | _ -> let r1 = Str.regexp "\\([a-z]+\\) (\\([a-z>() -]+\\))" in
              if (Str.string_match r1 t 0)
               then (match (Str.matched_group 1 t) with
-                   | "list" -> type_res (Str.matched_group 2 t)
-                   | "set" -> type_elts_check (Str.matched_group 2 t)
-                   | "fun" -> (match (type_param (Str.matched_group 2 t)) with
-                               | (arg, res) -> (type_res arg) &&  (type_res res))
-                   | "recfun" -> (match (type_param (Str.matched_group 2 t)) with
-                                  | (arg, res) -> (type_res arg) && (type_res res))
-                   | _ -> failwith "Not a valid type for elements of set")
+                    | "list" -> type_res (Str.matched_group 2 t)
+                    | "set" -> type_elts_check (Str.matched_group 2 t)
+                    | "fun" -> (match (type_param (Str.matched_group 2 t)) with
+                                | (arg, res) -> (type_res arg) &&  (type_res res))
+                    | "recfun" -> (match (type_param (Str.matched_group 2 t)) with
+                                   | (arg, res) -> (type_res arg) && (type_res res))
+                    | _ -> failwith "Not a valid type for elements of set")
                  else failwith "Not a valid type for elements of set"
     in let r0 = Str.regexp "\\([a-z]+\\) (\\([a-z>() -]+\\))" in
          if (Str.string_match r0 str 0)
